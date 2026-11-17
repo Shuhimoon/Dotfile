@@ -12,6 +12,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	dotfiles "github.com/shuhi/dotfiles"
 	"github.com/shuhi/dotfiles/internal/catalog"
 	"github.com/shuhi/dotfiles/internal/configcopy"
 	"github.com/shuhi/dotfiles/internal/install"
@@ -25,6 +26,7 @@ import (
 
 const usage = `用法:
   tools [--verbose] [--force]
+  tools --version
   tools apply [--only id,id] [--pm apt|dnf|yum|pacman|zypper|apk|xbps|brew] [--dry-run] [--bashrc PATH] [--verbose] [--force]
 `
 
@@ -48,6 +50,9 @@ func run(args []string, stdin, stdout, stderr *os.File) int {
 	switch args[0] {
 	case "-h", "--help":
 		fmt.Fprint(stdout, usage)
+		return 0
+	case "--version", "version":
+		fmt.Fprintln(stdout, versionString())
 		return 0
 	case "apply":
 		return runApply(args[1:], verbose, force, stdout, stderr)
@@ -85,7 +90,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	repo, _ := findRepo()
+	repo := configRepo(home)
 	uname := platform.UnameM()
 	osr, _ := platform.LoadOSRelease()
 	client := release.NewClients()
@@ -245,7 +250,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		}
 		return 0
 	}
-	repo, _ := findRepo()
+	repo := configRepo(home)
 	uname := platform.UnameM()
 	client := release.NewClients()
 	r := &install.Runner{
@@ -317,21 +322,79 @@ func splitCSV(s string) []string {
 	return out
 }
 
+// findRepo walks up from the working directory to a checkout of this repo
+// (a go.mod declaring module github.com/shuhi/dotfiles). Any other go.mod
+// stops nothing: the walk keeps going up.
 func findRepo() (string, error) {
 	dir, err := os.Getwd()
 	if err != nil {
 		return "", err
 	}
+	return findRepoFrom(dir)
+}
+
+func findRepoFrom(dir string) (string, error) {
 	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+		if isDotfilesRepo(dir) {
 			return dir, nil
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("找不到 go.mod")
+			return "", fmt.Errorf("找不到 dotfiles repo")
 		}
 		dir = parent
 	}
+}
+
+func isDotfilesRepo(dir string) bool {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.TrimSpace(line) == "module "+modulePath {
+			return true
+		}
+	}
+	return false
+}
+
+// configRepo is where config files are deployed from. Inside a checkout of
+// this repo (development) the checkout itself is used. A released binary
+// uses its embedded copy, extracted to
+// ~/.local/share/dotfiles-tools/configs/<version>. "" means no configs
+// (the config step is then skipped, as before).
+func configRepo(home string) string {
+	if repo, err := findRepo(); err == nil {
+		return repo
+	}
+	return extractConfigs(home, version)
+}
+
+func extractConfigs(home, ver string) string {
+	if home == "" {
+		return ""
+	}
+	dir := filepath.Join(home, ".local", "share", "dotfiles-tools", "configs", safeVersion(ver))
+	if err := configcopy.Extract(dotfiles.Configs, dir); err != nil {
+		fmt.Fprintln(os.Stderr, "設定檔解壓失敗:", err)
+		return ""
+	}
+	return dir
+}
+
+func safeVersion(v string) string {
+	v = strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '.', r == '-', r == '_', r == '+':
+			return r
+		}
+		return '_'
+	}, v)
+	if v == "" || v == "." || v == ".." {
+		return "dev"
+	}
+	return v
 }
 
 func isTTY(f *os.File) bool {

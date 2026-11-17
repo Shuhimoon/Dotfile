@@ -1,0 +1,72 @@
+# yaml-language-server: $schema=https://goreleaser.com/static/schema.json
+# Run locally (no GitHub Actions):
+#   goreleaser check
+#   goreleaser release --snapshot --clean      # test build into dist/
+#   GITHUB_TOKEN=... goreleaser release --clean # after pushing a vX.Y.Z tag
+version: 2
+
+project_name: tools
+
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
+builds:
+  - id: tools
+    main: ./cmd/tools
+    binary: tools
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .ShortCommit }}
+      - -X main.date={{ .Date }}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+      - arm
+      - "386"
+    goarm:
+      - "7"
+    ignore:
+      - goos: darwin
+        goarch: "386"
+      - goos: darwin
+        goarch: arm
+
+archives:
+  - id: tools
+    formats: [tar.gz]
+    # tools_0.1.0_linux_amd64.tar.gz, tools_0.1.0_linux_armv7.tar.gz, ...
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}
+    # The starship/zellij/zsh configs are embedded in the binary (configs.go),
+    # so the archive only needs the binary and the README.
+    files:
+      - README.md
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: git
+  sort: asc
+  filters:
+    exclude:
+      - "^Merge "
+
+release:
+  github:
+    owner: Shuhimoon
+    name: Dotfile
+  draft: false
+  prerelease: auto
+  name_template: "v{{ .Version }}"
