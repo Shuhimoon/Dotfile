@@ -1,6 +1,6 @@
 # Dotfiles
 
-個人 dotfiles 與 `tools`：一個 Bubble Tea TUI，用來在 Linux／macOS 安裝與移除常用 CLI 工具，並部署這個 repo 裡的設定檔。
+個人 dotfiles 與 `tools`：使用 Bubble Tea TUI 框架， 用來在 Linux／macOS 安裝與移除常用 CLI 工具 。
 
 ```sh
 go run ./cmd/tools            # TUI：tools-download / tools-uninstall
