@@ -64,6 +64,7 @@ func atThen(pkg, paths string) string {
 func specs() map[catalog.ID]itemSpec {
 	linuxCC := "/usr/bin/gcc;/usr/bin/g++"
 	linuxRust := "/usr/bin/rustc;/usr/bin/cargo"
+	linuxDocker := "/usr/bin/docker"
 	brewRust := "/opt/homebrew/bin/rustc,/usr/local/bin/rustc;/opt/homebrew/bin/cargo,/usr/local/bin/cargo"
 	return map[catalog.ID]itemSpec{
 		"git":   {cell: with(base(atThen("git", "/usr/bin/git")), "brew", atThen("git", "/usr/bin/git,/opt/homebrew/bin/git,/usr/local/bin/git"))},
@@ -189,6 +190,20 @@ func specs() map[catalog.ID]itemSpec {
 			atThen("pkg-config", "/usr/bin/pkg-config"),
 			atThen("pkgconf", "/opt/homebrew/bin/pkg-config,/usr/local/bin/pkg-config"),
 		}},
+		// Docker: distro packages only (no third-party docker-ce repo). apt has no
+		// compose v2 package name shared by Debian and Ubuntu, so apt installs the
+		// engine alone; brew installs the CLI (a daemon needs Docker Desktop or colima).
+		"docker": {cell: [8]string{
+			atThen("docker.io", linuxDocker),
+			atThen("moby-engine|docker-compose", linuxDocker),
+			atThen("docker", linuxDocker),
+			atThen("docker|docker-compose", linuxDocker),
+			atThen("docker|docker-compose", linuxDocker),
+			atThen("docker|docker-cli-compose", linuxDocker),
+			atThen("docker|docker-compose", linuxDocker),
+			atThen("docker|docker-compose", "/opt/homebrew/bin/docker,/usr/local/bin/docker"),
+		}},
+		"podman": {cell: with(base(atThen("podman", "/usr/bin/podman")), "brew", atThen("podman", "/opt/homebrew/bin/podman,/usr/local/bin/podman"))},
 	}
 }
 

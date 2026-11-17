@@ -239,7 +239,7 @@ func (m model) dryReport() model {
 	m.stepState = make([]string, len(m.steps))
 	for i, st := range m.steps {
 		m.stepState[i] = "skipped"
-		if st.ItemID == "" || st.Kind == install.KindUpdate || st.Kind == install.KindConfig || st.Kind == install.KindLink {
+		if st.ItemID == "" || st.Kind == install.KindUpdate || st.Kind == install.KindConfig || st.Kind == install.KindLink || st.Kind == install.KindService {
 			continue
 		}
 		m.results = append(m.results, install.ItemResult{

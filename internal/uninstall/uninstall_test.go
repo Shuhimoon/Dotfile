@@ -51,7 +51,7 @@ func TestRemovable(t *testing.T) {
 			t.Errorf("%s removable", id)
 		}
 	}
-	for _, id := range []catalog.ID{"zsh", "starship", "eza", "fzf", "zellij", "mitos", "go", "rust", "python", "node", "make", "pkg-config"} {
+	for _, id := range []catalog.ID{"zsh", "starship", "eza", "fzf", "zellij", "mitos", "go", "rust", "python", "node", "make", "pkg-config", "docker", "podman"} {
 		if !uninstall.Removable(id) {
 			t.Errorf("%s not removable", id)
 		}
@@ -64,6 +64,11 @@ func TestRemovable(t *testing.T) {
 	}
 	if _, ok := uninstall.NeedsWarning("node"); ok {
 		t.Error("node warning")
+	}
+	for _, mgr := range []string{"apt", "dnf", "yum", "pacman", "zypper", "apk", "xbps", "brew"} {
+		if !uninstall.Supported("docker", mgr) || !uninstall.Supported("podman", mgr) {
+			t.Errorf("containers unsupported on %s", mgr)
+		}
 	}
 	if uninstall.Supported("compiler", "brew") || uninstall.Supported("make", "brew") || !uninstall.Supported("compiler", "dnf") {
 		t.Error("Supported")
@@ -105,6 +110,15 @@ func TestBuildSteps(t *testing.T) {
 		{"nothing on disk falls back to package manager", []catalog.ID{"jq"}, "pacman", 1000,
 			uninstall.Probe{Home: h},
 			[]want{{"remove jq", "sudo pacman -R --noconfirm jq"}}},
+		{"docker on fedora removes moby", []catalog.ID{"docker"}, "dnf", 1000,
+			uninstall.Probe{Home: h, Exists: set("/usr/bin/docker")},
+			[]want{{"remove docker", "sudo dnf remove -y moby-engine docker-compose"}}},
+		{"docker on ubuntu removes docker.io", []catalog.ID{"docker"}, "apt", 1000,
+			uninstall.Probe{Home: h, Exists: set("/usr/bin/docker")},
+			[]want{{"remove docker", "sudo apt-get remove -y docker.io"}}},
+		{"podman on arch", []catalog.ID{"podman"}, "pacman", 1000,
+			uninstall.Probe{Home: h, Exists: set("/usr/bin/podman")},
+			[]want{{"remove podman", "sudo pacman -R --noconfirm podman"}}},
 		{"go tarball non-root uses sudo rm", []catalog.ID{"go"}, "dnf", 1000,
 			uninstall.Probe{Home: h, GoRoot: "/usr/local", Exists: set("/usr/local/go/bin/go")},
 			[]want{{"go-tarball-remove go", "sudo rm -rf /usr/local/go"}, {"shell-rc go", ""}}},

@@ -9,7 +9,7 @@ import (
 	"github.com/shuhi/dotfiles/internal/pm"
 )
 
-// Literal 32×8 expectations. Do not derive these from names.go.
+// Literal 34×8 expectations. Do not derive these from names.go.
 //
 //	rel                     primary release
 //	xcode                   xcode-clt
@@ -53,6 +53,8 @@ var matrix = map[string][8]string{
 	"cmake":      {"then:cmake:/usr/bin/cmake", "then:cmake:/usr/bin/cmake", "then:cmake:/usr/bin/cmake", "then:cmake:/usr/bin/cmake", "then:cmake:/usr/bin/cmake", "then:cmake:/usr/bin/cmake", "then:cmake:/usr/bin/cmake", "then:cmake:/opt/homebrew/bin/cmake,/usr/local/bin/cmake,/usr/bin/cmake"},
 	"compiler":   {"then:build-essential:/usr/bin/gcc;/usr/bin/g++", "then:gcc|gcc-c++:/usr/bin/gcc;/usr/bin/g++", "then:gcc|gcc-c++:/usr/bin/gcc;/usr/bin/g++", "then:base-devel:/usr/bin/gcc;/usr/bin/g++", "then:gcc|gcc-c++:/usr/bin/gcc;/usr/bin/g++", "then:build-base:/usr/bin/gcc;/usr/bin/g++", "then:base-devel:/usr/bin/gcc;/usr/bin/g++", "xcode"},
 	"pkg-config": {"then:pkg-config:/usr/bin/pkg-config", "then:pkgconf-pkg-config:/usr/bin/pkg-config", "then:pkgconfig:/usr/bin/pkg-config", "then:pkgconf:/usr/bin/pkg-config", "then:pkg-config:/usr/bin/pkg-config", "then:pkgconf:/usr/bin/pkg-config", "then:pkg-config:/usr/bin/pkg-config", "then:pkgconf:/opt/homebrew/bin/pkg-config,/usr/local/bin/pkg-config"},
+	"docker":     {"then:docker.io:/usr/bin/docker", "then:moby-engine|docker-compose:/usr/bin/docker", "then:docker:/usr/bin/docker", "then:docker|docker-compose:/usr/bin/docker", "then:docker|docker-compose:/usr/bin/docker", "then:docker|docker-cli-compose:/usr/bin/docker", "then:docker|docker-compose:/usr/bin/docker", "then:docker|docker-compose:/opt/homebrew/bin/docker,/usr/local/bin/docker"},
+	"podman":     {"then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/opt/homebrew/bin/podman,/usr/local/bin/podman"},
 }
 
 var releaseRepos = map[string]string{
@@ -77,7 +79,7 @@ func row8(cell string) [8]string {
 }
 
 func TestResolvePackageNames(t *testing.T) {
-	if len(matrix) != 32 {
+	if len(matrix) != 34 {
 		t.Fatalf("matrix len = %d", len(matrix))
 	}
 	mgrs := pm.Managers()
@@ -144,7 +146,7 @@ func TestResolvePackageNames(t *testing.T) {
 
 func TestEveryCatalogIDHasPlan(t *testing.T) {
 	ids := catalog.IDs()
-	if len(ids) != 32 || len(matrix) != 32 {
+	if len(ids) != 34 || len(matrix) != 34 {
 		t.Fatalf("ids %d matrix %d", len(ids), len(matrix))
 	}
 	seen := map[catalog.ID]bool{}

@@ -248,7 +248,7 @@ func TestCatalogHeadersFollowTitleGradient(t *testing.T) {
 	view := renderStyled(m, testRenderer())
 	cases := map[string]string{
 		"基礎": "1;38;2;240;173;160", // #F0ADA0
-		"編譯": "1;38;2;158;226;240", // #9EE2F0
+		"容器": "1;38;2;158;226;240", // #9EE2F0 (last category)
 	}
 	for title, sgr := range cases {
 		line := lineContaining(view, title)
@@ -259,6 +259,29 @@ func TestCatalogHeadersFollowTitleGradient(t *testing.T) {
 	for _, old := range []string{"48;2;56;73;52", "38;2;158;208;108", "48;2;43;44;58"} {
 		if strings.Contains(view, old) {
 			t.Errorf("old earth color %s still used", old)
+		}
+	}
+}
+
+func TestContainersCategoryInInstallAndUninstall(t *testing.T) {
+	m := New(fedoraInfo())
+	m.width, m.height = 160, 80
+	view := render(m, false)
+	for _, s := range []string{"容器", "docker", "podman"} {
+		if !strings.Contains(view, s) {
+			t.Errorf("install view missing %q\n%s", s, view)
+		}
+	}
+	u := uninstallFixture(t, "git", "docker", "podman")
+	u.height = 80
+	got := u.removableIDs()
+	if len(got) != 2 || got[0] != "docker" || got[1] != "podman" {
+		t.Fatalf("removable %v", got)
+	}
+	view = render(u, false)
+	for _, s := range []string{"容器", "docker", "podman"} {
+		if !strings.Contains(view, s) {
+			t.Errorf("uninstall view missing %q\n%s", s, view)
 		}
 	}
 }

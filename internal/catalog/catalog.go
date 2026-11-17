@@ -61,6 +61,10 @@ func All() []Category {
 			item("compiler", false, "平台 C/C++ 編譯器"),
 			item("pkg-config", false, "pkg-config 或 pkgconf"),
 		}},
+		{ID: "containers", Title: "容器", Items: []Item{
+			item("docker", false, "Linux 會加入 docker 群組並啟動服務；mac 只裝 CLI"),
+			item("podman", false, "免 daemon、可 rootless"),
+		}},
 	}
 }
 

@@ -79,8 +79,8 @@ func TestDefaultMarkerIndependentOfChecked(t *testing.T) {
 
 func TestCatalogIDsUnique(t *testing.T) {
 	ids := catalog.IDs()
-	if len(ids) != 32 {
-		t.Fatalf("len = %d, want 32", len(ids))
+	if len(ids) != 34 {
+		t.Fatalf("len = %d, want 34", len(ids))
 	}
 	seen := map[catalog.ID]bool{}
 	for _, id := range ids {
@@ -102,6 +102,7 @@ func TestCategoryOrder(t *testing.T) {
 		{"editors", "編輯器", []string{"neovim", "zellij", "fastfetch", "mitos"}},
 		{"languages", "語言", []string{"go", "rust", "python", "node"}},
 		{"build", "編譯", []string{"make", "cmake", "compiler", "pkg-config"}},
+		{"containers", "容器", []string{"docker", "podman"}},
 	}
 	got := catalog.All()
 	if len(got) != len(want) {

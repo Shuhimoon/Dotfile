@@ -22,6 +22,8 @@ const (
 	KindRustup  Kind = "rustup"
 	KindConfig  Kind = "config"
 	KindLink    Kind = "link-bash"
+	// KindService sets up the Docker group and service after the package.
+	KindService Kind = "service"
 )
 
 type Step struct {
@@ -74,6 +76,14 @@ func BuildSteps(plans []Plan, euid int, home string) ([]Step, error) {
 			return nil, err
 		}
 		steps = append(steps, st)
+	}
+	if selected["docker"] && plans[0].Manager != "brew" {
+		steps = append(steps, Step{
+			ItemID:  "docker",
+			Title:   "service docker",
+			Kind:    KindService,
+			Manager: plans[0].Manager,
+		})
 	}
 	for _, cid := range configcopy.ToolIDs {
 		id := catalog.ID(cid)

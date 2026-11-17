@@ -45,6 +45,9 @@ type Runner struct {
 	// Force re-runs a package argv and xcode-select --install.
 	// Preinstalled probes have no install argv and ignore it.
 	Force bool
+	// User is the account added to the docker group; nil uses SUDO_USER when
+	// root, else the current user.
+	User func() string
 	// Progress is display only. An empty status means title is starting.
 	Progress func(title, status string)
 }
@@ -112,6 +115,16 @@ func (r *Runner) RunSteps(ctx context.Context, steps []Step) ([]ItemResult, int)
 			status := "ok"
 			if text != "" {
 				status = "failed"
+			}
+			r.note(st.Title, status)
+		case KindService:
+			updated, status, canceled := r.doService(ctx, st, results)
+			if canceled {
+				_ = r.writeLog(results)
+				return results, 1
+			}
+			if status != "skipped" {
+				results = replaceResult(results, updated)
 			}
 			r.note(st.Title, status)
 		case KindProbe:
