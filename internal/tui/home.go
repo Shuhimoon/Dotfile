@@ -29,6 +29,8 @@ const (
 	textColor    lipgloss.Color = "#EDE3E1"
 	headColor    lipgloss.Color = "#F7C6BA"
 	homeKeyColor lipgloss.Color = "#9EE2F0"
+	// failColor marks a failed step on the progress page (text only).
+	failColor lipgloss.Color = "#F28B82"
 
 	cardLabelW = 6
 )

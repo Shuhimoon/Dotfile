@@ -7,9 +7,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/shuhi/dotfiles/internal/catalog"
-	"github.com/shuhi/dotfiles/internal/install"
 	"github.com/shuhi/dotfiles/internal/platform"
-	"github.com/shuhi/dotfiles/internal/uninstall"
 )
 
 const installedLabel = "(已安裝)"
@@ -93,9 +91,6 @@ func renderStyled(m model, r *lipgloss.Renderer) string {
 			fill = catalogBlank(p, m.width)
 		}
 	}
-	if m.askName != "" && bodyH > 0 {
-		body = placeAsk(body, bodyH, fill, paintHeader(p, m.askText(), m.width, false))
-	}
 	lines = append(lines, body...)
 	for i := len(body); i < bodyH; i++ {
 		lines = append(lines, fill)
@@ -106,7 +101,9 @@ func renderStyled(m model, r *lipgloss.Renderer) string {
 	} else {
 		lines = append(lines, paintFooter(p, m, footerN)...)
 	}
-	return strings.Join(lines, "\n") + "\n"
+	// No trailing newline: Bubble Tea would count it as one more line and cut
+	// the title bar off the top of a full-height frame.
+	return strings.Join(lines, "\n")
 }
 
 func renderPlain(m model) string {
@@ -124,9 +121,6 @@ func renderPlain(m model) string {
 	} else {
 		body = plainBody(m, bodyH)
 	}
-	if m.askName != "" && bodyH > 0 {
-		body = placeAsk(body, bodyH, "", plainAsk(m.askText(), m.width))
-	}
 	lines = append(lines, body...)
 	for i := len(body); i < bodyH; i++ {
 		lines = append(lines, "")
@@ -135,7 +129,9 @@ func renderPlain(m model) string {
 	if footerN > 0 {
 		lines = append(lines, plainHelp(m))
 	}
-	return strings.Join(lines, "\n") + "\n"
+	// No trailing newline: Bubble Tea would count it as one more line and cut
+	// the title bar off the top of a full-height frame.
+	return strings.Join(lines, "\n")
 }
 
 func frameSize(m model, styled bool) (headerN, statusN, bodyH, footerN int) {
@@ -246,16 +242,6 @@ func plainHeader(m model) string {
 	return plainAsk(FormatHeader(m.info), m.width)
 }
 
-func (m model) askText() string {
-	if m.askName == "" {
-		return ""
-	}
-	if m.askTold {
-		return "請加上 --force 後重新執行"
-	}
-	return m.askName + " 已安裝。要強制重新下載嗎？"
-}
-
 func plainAsk(text string, width int) string {
 	if width <= 0 {
 		return ""
@@ -266,19 +252,6 @@ func plainAsk(text string, width int) string {
 		line += strings.Repeat(" ", width-w)
 	}
 	return line
-}
-
-func placeAsk(body []string, bodyH int, fill, line string) []string {
-	out := make([]string, bodyH)
-	for i := 0; i < bodyH; i++ {
-		if i < len(body) {
-			out[i] = body[i]
-		} else {
-			out[i] = fill
-		}
-	}
-	out[(bodyH-1)/2] = line
-	return out
 }
 
 func formatRow(m model, row catalogRow) string {
@@ -380,6 +353,9 @@ func plainBody(m model, bodyH int) []string {
 	if bodyH <= 0 {
 		return nil
 	}
+	if m.phase == phaseInstalling || m.phase == phaseReport {
+		return plainProgress(m, bodyH)
+	}
 	if showsStatus(m.phase) {
 		lines, cursorAt := m.catalogLines()
 		start, end := window(len(lines), cursorAt, m.scroll, bodyH)
@@ -391,6 +367,9 @@ func plainBody(m model, bodyH int) []string {
 func styledBody(p palette, m model, bodyH int) []string {
 	if bodyH <= 0 {
 		return nil
+	}
+	if m.phase == phaseInstalling || m.phase == phaseReport {
+		return paintProgress(p, m, bodyH)
 	}
 	if showsStatus(m.phase) {
 		rows, cursorAt := m.catalogRows()
@@ -416,39 +395,8 @@ func styledBody(p palette, m model, bodyH int) []string {
 
 func phaseBody(m model) []string {
 	switch m.phase {
-	case phasePythonWarn:
-		return []string{uninstall.PythonWarning, pythonConfirm}
-	case phaseConfirm:
-		var lines []string
-		if m.mode == modeUninstall {
-			lines = append(lines, "將移除下列項目，連同它的設定檔與 ~/.bashrc、~/.zshrc 設定區塊")
-		}
-		if m.dryRun {
-			lines = append(lines, "只顯示計畫，不會執行")
-		}
-		for _, st := range m.steps {
-			lines = append(lines, st.Title)
-		}
-		return lines
-	case phaseInstalling:
-		lines := []string{"目前  " + m.curTitle, "已完成"}
-		for _, d := range m.done {
-			lines = append(lines, fmt.Sprintf("  %s  %s", d.Title, d.Status))
-		}
-		lines = append(lines, "待執行")
-		for _, st := range m.pendingSteps() {
-			lines = append(lines, "  "+st.Title)
-		}
-		return lines
-	case phaseReport:
-		lines := make([]string, 0, len(m.results)+1)
-		for _, res := range m.results {
-			lines = append(lines, install.FormatResult(res))
-		}
-		if m.status != "" {
-			lines = append(lines, m.status)
-		}
-		return lines
+	case phaseSudo:
+		return sudoBody(m)
 	default:
 		return nil
 	}
@@ -543,17 +491,6 @@ func (m model) cursorID() string {
 		return ""
 	}
 	return string(m.flat[m.cursor])
-}
-
-func (m model) pendingSteps() []install.Step {
-	n := len(m.done)
-	if m.running {
-		n++
-	}
-	if n >= len(m.steps) {
-		return nil
-	}
-	return m.steps[n:]
 }
 
 // rowInstalled is the purple "(已安裝)" style. The uninstall list only shows

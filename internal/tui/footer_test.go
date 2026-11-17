@@ -35,11 +35,6 @@ func TestFooterIsLastLine(t *testing.T) {
 		t.Fatal("help is still under the header")
 	}
 
-	m.phase = phaseConfirm
-	lines = frameLines(render(m, false))
-	if lines[len(lines)-1] != confirmHelp {
-		t.Fatalf("confirm %q", lines[len(lines)-1])
-	}
 	m.phase = phaseInstalling
 	lines = frameLines(render(m, false))
 	if lines[len(lines)-1] != installingHelp {
@@ -130,33 +125,32 @@ func TestCatalogScrollKeepsCursor(t *testing.T) {
 	}
 }
 
-func TestBodyClipShowsRemainder(t *testing.T) {
+func TestProgressListWindowShowsRemainder(t *testing.T) {
 	const n = 50
 	m := New(fedoraInfo())
 	m.width = 80
 	m.height = 40
-	m.phase = phaseConfirm
+	m.phase = phaseInstalling
 	m.steps = make([]install.Step, n)
 	for i := range m.steps {
 		m.steps[i].Title = fmt.Sprintf("步驟%02d", i)
 	}
-	bodyH := 38
-	keep := bodyH - 1
-	hint := fmt.Sprintf("…還有 %d 行", n-keep)
+	m.stepState = make([]string, n)
+	m.applyProgress("步驟00", "")
 
 	lines := frameLines(render(m, false))
 	if len(lines) != 40 {
 		t.Fatalf("plain lines %d", len(lines))
 	}
-	if lines[len(lines)-1] != confirmHelp {
+	if lines[len(lines)-1] != installingHelp {
 		t.Fatalf("footer %q", lines[len(lines)-1])
 	}
-	if lines[len(lines)-2] != hint {
-		t.Fatalf("hint %q", lines[len(lines)-2])
-	}
 	plain := strings.Join(lines, "\n")
-	if !strings.Contains(plain, "步驟36") || strings.Contains(plain, "步驟37") {
-		t.Fatal("plain clip window")
+	if !strings.Contains(plain, "安裝中  1/50  步驟00") || !strings.Contains(plain, "執行中  步驟00") {
+		t.Fatalf("head/running row:\n%s", plain)
+	}
+	if !strings.Contains(plain, "…還有") || strings.Contains(plain, "步驟49") {
+		t.Fatalf("list window:\n%s", plain)
 	}
 
 	view := renderStyled(m, testRenderer())
@@ -164,27 +158,11 @@ func TestBodyClipShowsRemainder(t *testing.T) {
 	if len(slines) != 40 {
 		t.Fatalf("styled lines %d", len(slines))
 	}
-	var hintLine string
-	for _, ln := range slines {
-		if strings.Contains(ln, hint) {
-			hintLine = ln
-		}
+	if strings.Contains(view, "48;2;") || strings.Contains(view, "步驟49") {
+		t.Fatal("styled window or background")
 	}
-	if hintLine == "" {
-		t.Fatal("styled hint missing")
-	}
-	if hintLine != slines[len(slines)-2] {
-		t.Fatal("hint is not the last body line")
-	}
-	if !strings.Contains(hintLine, sgrCream) || strings.Contains(hintLine, "48;2;") {
-		t.Fatalf("hint colors %q", hintLine)
-	}
-	last := slines[len(slines)-1]
-	if !strings.Contains(last, "n/esc") || !strings.Contains(last, "返回") {
-		t.Fatalf("styled footer %q", last)
-	}
-	if strings.Contains(view, "步驟37") {
-		t.Fatal("styled showed a hidden step")
+	if !strings.Contains(slines[len(slines)-1], "ctrl+c") {
+		t.Fatalf("styled footer %q", slines[len(slines)-1])
 	}
 }
 
@@ -195,8 +173,8 @@ func TestFooterLayoutWidth(t *testing.T) {
 	if strings.Join(segs, "  ") != full {
 		t.Fatalf("segments %q", strings.Join(segs, "  "))
 	}
-	if strings.Join(footerSegments(phaseModel(m, phaseConfirm)), "  ") != confirmHelp {
-		t.Fatal("confirm segments")
+	if strings.Join(footerSegments(phaseModel(m, phaseSudo)), "  ") != sudoHelp {
+		t.Fatal("sudo segments")
 	}
 	if strings.Join(footerSegments(phaseModel(m, phaseInstalling)), "  ") != installingHelp {
 		t.Fatal("installing segments")
@@ -265,9 +243,8 @@ func phaseModel(m model, ph phase) model {
 }
 
 func frameLines(s string) []string {
-	parts := strings.Split(s, "\n")
-	if len(parts) > 0 && parts[len(parts)-1] == "" {
-		parts = parts[:len(parts)-1]
+	if s == "" {
+		return nil
 	}
-	return parts
+	return strings.Split(s, "\n")
 }

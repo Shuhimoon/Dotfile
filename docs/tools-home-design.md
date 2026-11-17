@@ -1,5 +1,7 @@
 # `tools` TUI 首頁：置中的 `Tools-install`、本機卡與兩個選項
 
+> **2026-11-17 更新（進度頁）：** 確認頁、python 的 y 確認、強制重裝 y/n 問句與跳出到 shell 執行命令都已移除；改為 TUI 內的進度頁與 sudo 密碼頁，見 `docs/tools-progress-design.md`。本文件與它衝突的段落以新文件為準。
+
 > **2026-11-17 更新：** 解除安裝、設定檔部署、bash/zsh 設定區塊與色系（全部畫面不畫背景色）已改，見 `docs/tools-uninstall-design.md`。本文件與它衝突的段落以新文件為準。
 
 | 欄位 | 值 |

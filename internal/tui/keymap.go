@@ -64,8 +64,7 @@ func browsingHelp(k keyMap) string {
 }
 
 const (
-	confirmHelp    = "操作  y 開始  n/esc 返回"
 	installingHelp = "操作  ctrl+c 取消"
-	reportHelp     = "操作  任意鍵返回  q 離開"
-	pythonWarnHelp = "操作  y 確定移除  n/esc 返回"
+	reportHelp     = "操作  任意鍵回主頁"
+	sudoHelp       = "操作  enter 確認  esc 返回"
 )

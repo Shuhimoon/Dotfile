@@ -42,14 +42,12 @@ func footerHints(m model) []hint {
 			hints = append(hints, hint{Key: h.Key, Desc: h.Desc})
 		}
 		return hints
-	case phasePythonWarn:
-		return []hint{{Key: "操作"}, {Key: "y", Desc: "確定移除"}, {Key: "n/esc", Desc: "返回"}}
-	case phaseConfirm:
-		return []hint{{Key: "操作"}, {Key: "y", Desc: "開始"}, {Key: "n/esc", Desc: "返回"}}
+	case phaseSudo:
+		return []hint{{Key: "操作"}, {Key: "enter", Desc: "確認"}, {Key: "esc", Desc: "返回"}}
 	case phaseInstalling:
 		return []hint{{Key: "操作"}, {Key: "ctrl+c", Desc: "取消"}}
 	case phaseReport:
-		return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: "返回"}, {Key: "q", Desc: "離開"}}
+		return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: "回主頁"}}
 	default:
 		hints := []hint{{Key: "操作"}}
 		for _, b := range m.keys.browsing() {
@@ -64,8 +62,8 @@ func hintText(h hint) string {
 	if h.Desc == "" {
 		return h.Key
 	}
-	// reportHelp is "任意鍵返回" with no space between the key and the label.
-	if h.Key == "任意鍵" && h.Desc == "返回" {
+	// reportHelp is "任意鍵回主頁" with no space between the key and the label.
+	if h.Key == "任意鍵" && h.Desc == "回主頁" {
 		return h.Key + h.Desc
 	}
 	return h.Key + " " + h.Desc
@@ -195,10 +193,8 @@ func plainHelp(m model) string {
 		return homeHelp
 	case phaseUninstall:
 		return uninstallHelp(m.keys)
-	case phasePythonWarn:
-		return pythonWarnHelp
-	case phaseConfirm:
-		return confirmHelp
+	case phaseSudo:
+		return sudoHelp
 	case phaseInstalling:
 		return installingHelp
 	case phaseReport:

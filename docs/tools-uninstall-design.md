@@ -9,7 +9,7 @@
 
 ## 1. 目錄色系（tools-download／tools-uninstall）
 
-所有畫面（首頁、目錄、confirm、安裝中、報告、解除安裝、python 警告、強制重裝問句、頂端系統列、底欄）**都不畫背景色**，只用文字顏色，終端機底色透出來；輸出裡不會有 `48;2` 或反白 SGR（`TestNoScreenEmitsBackground` 檢查）。文字顏色沿首頁的標題漸層 `#F0ADA0 → #9EE2F0`（`lerpTitle`）。
+所有畫面（首頁、目錄、confirm、安裝中、報告、解除安裝、sudo 密碼頁、進度頁、頂端系統列、底欄）**都不畫背景色**，只用文字顏色，終端機底色透出來；輸出裡不會有 `48;2` 或反白 SGR（`TestNoScreenEmitsBackground` 檢查）。文字顏色沿首頁的標題漸層 `#F0ADA0 → #9EE2F0`（`lerpTitle`）。
 
 | token | 值 | 用途 |
 | --- | --- | --- |
@@ -34,11 +34,11 @@
 首頁第二項改為真的解除安裝流程（`phaseUninstall`）：
 
 1. 清單只列「已安裝」且可移除的工具，依目錄分類與順序；不顯示 `(已安裝)` 樣式。
-2. **基礎**分類（git、curl、wget、unzip、rsync、vim、less、net-tools、whois、dnsutils、traceroute）不可移除，不列出；狀態列寫明。
+2. **基礎**分類（git、curl、wget、unzip、rsync、vim、less、net-tools、whois、dnsutils、traceroute）不可移除，不列出。畫面上不再有說明這件事的提示列（2026-11-17 起移除）。
 3. 由系統提供、無法撤銷的方法（Xcode CLT、`@pre` 預裝檔）不列出。
 4. 按鍵：`↑↓/jk`、`space`、`a`、`A`、`g`、`G`、`enter` 移除已勾選、`esc/b` 返回首頁、`q` 離開。
-5. 勾選 python 時先進 `phasePythonWarn`：警告 Fedora 的 dnf 依賴 python3；只有 `y` 繼續，`n`/`esc` 返回。
-6. confirm 畫面列出所有步驟，`y` 執行，`n/esc` 回清單；報告畫面任意鍵回清單。
+5. `enter` 直接開始移除，沒有確認頁、沒有任何 `y` 步驟（見 `docs/tools-progress-design.md`）。
+6. 勾選 python 時，進度頁與報告上多一列警告（Fedora 的 dnf 依賴 python3），不會停下來等按鍵。報告頁任意鍵回首頁。
 
 `internal/uninstall` 依實際留下的檔案決定步驟（同一工具可能有多個）：
 

@@ -30,7 +30,7 @@ const (
 // LockedCategory is the catalog category that can never be removed.
 const LockedCategory = "basics"
 
-// PythonWarning is shown, and must be confirmed, before python is removed.
+// PythonWarning is shown on the progress page when python is removed (it does not block).
 const PythonWarning = "警告：Fedora 的 dnf（以及許多系統工具）需要 python3 才能執行，移除 python 可能讓套件管理器壞掉。"
 
 type Step struct {
@@ -82,7 +82,7 @@ func Removable(id catalog.ID) bool {
 	return false
 }
 
-// NeedsWarning reports the confirmation text an item needs before removal.
+// NeedsWarning reports the warning text shown while an item is removed.
 func NeedsWarning(id catalog.ID) (string, bool) {
 	if id == "python" {
 		return PythonWarning, true

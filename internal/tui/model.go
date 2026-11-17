@@ -21,27 +21,24 @@ type phase int
 const (
 	phaseDetecting phase = iota
 	phaseBrowsing
-	phaseConfirm
+	// phaseInstalling is the in-TUI progress page while a run is going.
 	phaseInstalling
+	// phaseReport is the same page once the run ended; any key goes home.
 	phaseReport
 	phaseFailed
 	phaseHome
 	phaseUninstall
-	phasePythonWarn
+	// phaseSudo asks for the sudo password (masked) inside the TUI.
+	phaseSudo
 )
 
-// runMode tells the shared confirm/installing/report phases which flow they belong to.
+// runMode tells the shared sudo/progress/report phases which flow they belong to.
 type runMode int
 
 const (
 	modeInstall runMode = iota
 	modeUninstall
 )
-
-type doneLine struct {
-	Title  string
-	Status string
-}
 
 // Deps wires detection and one Runner. EUID is read at install time; zero is root.
 // Log receives the detected manager because Runner.Log does not.
@@ -53,6 +50,10 @@ type Deps struct {
 	// Exists probes files when planning a removal; nil uses os.Stat.
 	Exists func(string) bool
 	Log    func(manager string, results []install.ItemResult) error
+	// Sudo validates and refreshes sudo credentials; nil runs the real sudo.
+	Sudo sudoer
+	// Detect re-probes installed tools after a run; nil uses detectInstalled.
+	Detect func(manager string) map[catalog.ID]bool
 }
 
 type model struct {
@@ -67,8 +68,6 @@ type model struct {
 	scroll    int
 	installed map[catalog.ID]bool
 	force     bool
-	askName   string
-	askTold   bool
 	homeIndex int
 	homeUser  string
 	homeHost  string
@@ -76,9 +75,6 @@ type model struct {
 	homeDNS   string
 	steps     []install.Step
 	results   []install.ItemResult
-	done      []doneLine
-	curTitle  string
-	running   bool
 	events    chan bridgeMsg
 	status    string
 	dryRun    bool
@@ -91,6 +87,22 @@ type model struct {
 	ucursor   int
 	uselected map[catalog.ID]bool
 	usteps    []uninstall.Step
+
+	// progress page
+	curTitle  string
+	stepState []string
+	stepRun   int
+	stepNext  int
+	output    []string
+	outCR     bool
+	warnings  []string
+	canceled  bool
+
+	// sudo page; pw is the masked input and is zeroed on submit or leave.
+	pw       []byte
+	sudoNote string
+	sudoBusy bool
+	sudoGen  int
 }
 
 func New(info platform.Info) model {
@@ -103,6 +115,7 @@ func New(info platform.Info) model {
 		height:    40,
 		phase:     phaseBrowsing,
 		keys:      newKeyMap(),
+		stepRun:   -1,
 	}
 	for _, c := range m.cats {
 		for _, it := range c.Items {

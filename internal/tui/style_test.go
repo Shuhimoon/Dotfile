@@ -158,7 +158,7 @@ func TestDescriptionUsesMutedNotCheckColor(t *testing.T) {
 	}
 }
 
-func TestStyledStatusAndConfirmBody(t *testing.T) {
+func TestStyledStatusAndProgressBody(t *testing.T) {
 	m := New(fedoraInfo())
 	view := renderStyled(m, testRenderer())
 	status := lineContaining(view, "游標")
@@ -166,12 +166,11 @@ func TestStyledStatusAndConfirmBody(t *testing.T) {
 		t.Fatalf("status %s", status)
 	}
 
-	m.phase = phaseConfirm
-	m.steps = []install.Step{{Title: "計畫安裝 curl"}}
+	m.phase = phaseSudo
+	m.pw = []byte("secret")
 	view = renderStyled(m, testRenderer())
-	step := lineContaining(view, "計畫安裝 curl")
-	if step == "" || !strings.Contains(step, sgrCream) || strings.Contains(step, "48;2;") {
-		t.Fatalf("step %s", step)
+	if strings.Contains(view, "secret") || lineContaining(view, "sudo 密碼：******") == "" {
+		t.Fatalf("sudo page must mask the password\n%s", view)
 	}
 	filled := 0
 	for _, ln := range frameLines(view) {
@@ -182,46 +181,42 @@ func TestStyledStatusAndConfirmBody(t *testing.T) {
 	if filled == 0 {
 		t.Fatal("short body was not padded with plain blank lines")
 	}
-
-	m.phase = phaseReport
-	m.steps = nil
-	m.results = []install.ItemResult{{ID: "git", Status: "ok", Note: "note"}}
-	view = renderStyled(m, testRenderer())
-	rep := lineContaining(view, "git  ok  note")
-	if rep == "" || !strings.Contains(rep, sgrCream) || strings.Contains(rep, "48;2;") {
-		t.Fatalf("report %s", rep)
-	}
-	if strings.Contains(rep, sgrClay) || strings.Contains(rep, sgrGold) {
-		t.Fatalf("report recolored %s", rep)
-	}
+	m.pw = nil
 
 	m.phase = phaseInstalling
-	m.results = nil
-	m.curTitle = "rust"
-	m.done = []doneLine{
-		{Title: "套件甲", Status: "ok"},
-		{Title: "套件乙", Status: "failed"},
-		{Title: "套件丙", Status: "satisfied"},
+	m.steps = []install.Step{{Title: "套件甲"}, {Title: "套件乙"}, {Title: "套件丙"}, {Title: "套件丁"}, {Title: "套件戊"}}
+	m.stepState = make([]string, len(m.steps))
+	for _, ev := range [][2]string{
+		{"套件甲", ""}, {"套件甲", "ok"},
+		{"套件乙", ""}, {"套件乙", "failed"},
+		{"套件丙", ""}, {"套件丙", "satisfied"},
+		{"套件丁", ""},
+	} {
+		m.applyProgress(ev[0], ev[1])
 	}
-	m.steps = []install.Step{{Title: "套件丁"}}
 	view = renderStyled(m, testRenderer())
-	for _, needle := range []string{"  套件甲  ok", "  套件乙  failed", "  套件丙  satisfied"} {
-		line := lineContaining(view, needle)
-		if line == "" || !strings.Contains(line, sgrCream) || strings.Contains(line, "48;2;") {
-			t.Fatalf("%s %s", needle, line)
-		}
-		if strings.Contains(line, sgrClay) || strings.Contains(line, sgrGold) || strings.Contains(line, sgrOlive) {
-			t.Fatalf("%s recolored %s", needle, line)
-		}
-		if strings.Contains(line, "\x1b[7;") || strings.Contains(line, "\x1b[1;7;") || strings.Contains(line, "48;2;") || strings.Contains(line, "48;2;") {
-			t.Fatalf("%s reversed %s", needle, line)
+	for _, c := range []struct{ needle, sgr string }{
+		{"完成    套件甲", sgrKey},
+		{"失敗    套件乙", "38;2;242;139;130"},
+		{"已安裝  套件丙", sgrKey},
+		{"執行中  套件丁", sgrClay},
+		{"等待    套件戊", sgrMuted},
+		{"安裝中  4/5  套件丁", "1;" + sgrCream},
+	} {
+		line := lineContaining(view, c.needle)
+		if line == "" || !strings.Contains(line, c.sgr) || strings.Contains(line, "48;2;") || hasReverse(line) {
+			t.Fatalf("%s %q", c.needle, line)
 		}
 	}
-	if strings.Contains(rep, "\x1b[7;") || strings.Contains(rep, "\x1b[1;7;") || strings.Contains(rep, "48;2;") || strings.Contains(rep, "48;2;") {
-		t.Fatalf("report reversed %s", rep)
+
+	m.finishRun([]install.ItemResult{{ID: "git", Status: "ok", Note: "note"}}, 0)
+	view = renderStyled(m, testRenderer())
+	rep := lineContaining(view, "git  ok  note")
+	if rep == "" || !strings.Contains(rep, sgrKey) || strings.Contains(rep, "48;2;") || hasReverse(rep) {
+		t.Fatalf("report %s", rep)
 	}
-	if strings.Contains(status, "48;2;") || strings.Contains(status, "48;2;") || strings.Contains(step, "48;2;") || strings.Contains(step, "48;2;") {
-		t.Fatal("status or confirm picked up the row or title background")
+	if lineContaining(view, "安裝完成：成功 1") == "" || !strings.Contains(ansi.Strip(view), "任意鍵") {
+		t.Fatalf("report head/hint\n%s", ansi.Strip(view))
 	}
 }
 

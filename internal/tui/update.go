@@ -1,9 +1,7 @@
 package tui
 
 import (
-	"context"
 	"os"
-	"os/signal"
 
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
@@ -49,19 +47,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.onKey(msg)
 	case bridgeMsg:
 		return m.onBridge(msg)
-	case listenAgainMsg:
-		if msg.runID != m.runID || m.phase != phaseInstalling {
-			return m, nil
-		}
-		return m, listen(m.events, m.runID)
+	case sudoCheckMsg:
+		return m.onSudoCheck(msg)
+	case sudoValidMsg:
+		return m.onSudoValid(msg)
 	}
 	return m, nil
 }
 
 func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	if m.askName != "" {
-		return m.onAskKey(k)
-	}
 	switch m.phase {
 	case phaseDetecting:
 		return m.homeKey(k, false)
@@ -69,8 +63,8 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.homeKey(k, true)
 	case phaseUninstall:
 		return m.uninstallKey(k)
-	case phasePythonWarn:
-		return m.pythonWarnKey(k)
+	case phaseSudo:
+		return m.sudoKey(k)
 	case phaseFailed:
 		if k.String() == "q" {
 			return m, tea.Quit
@@ -88,36 +82,13 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m.browseKey(k, true)
-	case phaseConfirm:
-		switch k.String() {
-		case "y":
-			if m.mode == modeUninstall {
-				return m.startUninstall()
-			}
-			return m.startInstall()
-		case "n", "esc":
-			m.phase = phaseBrowsing
-			if m.mode == modeUninstall {
-				m.phase = phaseUninstall
-			}
-			m.dryRun = false
-			return m, nil
-		}
 	case phaseInstalling:
 		if k.String() == "ctrl+c" {
-			return m.cancelInstall()
+			return m.cancelRun()
 		}
 	case phaseReport:
-		if k.String() == "q" {
-			return m, tea.Quit
-		}
-		m.phase = phaseBrowsing
-		if m.mode == modeUninstall {
-			m.phase = phaseUninstall
-			m.status = uninstallNote
-		}
-		m.dryRun = false
-		return m, nil
+		// Any key, q included, returns to the home page.
+		return m.goHome()
 	}
 	return m, nil
 }
@@ -144,22 +115,12 @@ func (m model) activateHome() (tea.Model, tea.Cmd) {
 	switch m.homeIndex {
 	case 0:
 		m.phase = phaseBrowsing
+		m.mode = modeInstall
 		m.status = ""
 	case 1:
 		return m.enterUninstall()
 	default:
 		m.homeIndex = 0
-	}
-	return m, nil
-}
-
-func (m model) onAskKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch k.String() {
-	case "y":
-		m.askTold = true
-	case "n", "esc", "q":
-		m.askName = ""
-		m.askTold = false
 	}
 	return m, nil
 }
@@ -175,12 +136,8 @@ func (m model) browseKey(k tea.KeyMsg, allowInstall bool) (tea.Model, tea.Cmd) {
 			m.cursor++
 		}
 	case key.Matches(k, m.keys.Toggle):
+		// An installed tool can be picked too: it is downloaded again.
 		id := m.flat[m.cursor]
-		if m.installed[id] && !m.selected[id] && !m.force {
-			m.askName = m.itemByID(id).Name
-			m.askTold = false
-			return m, nil
-		}
 		m.selected[id] = !m.selected[id]
 	case key.Matches(k, m.keys.Install):
 		if !allowInstall {
@@ -190,7 +147,7 @@ func (m model) browseKey(k tea.KeyMsg, allowInstall bool) (tea.Model, tea.Cmd) {
 			m.status = "尚未勾選任何項目"
 			return m, nil
 		}
-		return m.enterConfirm(false)
+		return m.startInstall(false)
 	case key.Matches(k, m.keys.CatAll):
 		m.toggleIDs(m.idsInCategory(m.categoryOf(m.flat[m.cursor])))
 	case key.Matches(k, m.keys.All):
@@ -203,7 +160,7 @@ func (m model) browseKey(k tea.KeyMsg, allowInstall bool) (tea.Model, tea.Cmd) {
 			m.status = "尚未勾選任何項目"
 			return m, nil
 		}
-		return m.enterConfirm(true)
+		return m.startInstall(true)
 	case key.Matches(k, m.keys.Top):
 		m.cursor = 0
 	case key.Matches(k, m.keys.Bottom):
@@ -246,88 +203,50 @@ func (m *model) toggleIDs(ids []catalog.ID) {
 	}
 }
 
-func (m model) enterConfirm(dry bool) (tea.Model, tea.Cmd) {
-	m.dryRun = dry
+// startInstall goes straight from the list to the work: no y/n step.
+// dry shows the plan on the report page without running anything.
+func (m model) startInstall(dry bool) (tea.Model, tea.Cmd) {
 	m.mode = modeInstall
+	m.warnings = nil
 	plans, err := install.ResolveAll(m.selectedIDs(), m.info.Manager)
 	if err != nil {
 		m.status = err.Error()
-		m.dryRun = false
 		return m, nil
 	}
 	steps, err := install.BuildSteps(plans, os.Geteuid(), m.home())
 	if err != nil {
 		m.status = err.Error()
-		m.dryRun = false
 		return m, nil
 	}
 	if len(steps) == 0 {
 		m.status = "尚未勾選任何項目"
-		m.dryRun = false
 		return m, nil
 	}
 	m.steps = steps
-	m.phase = phaseConfirm
 	m.status = ""
-	return m, nil
+	m.dryRun = dry
+	if dry {
+		return m.dryReport(), nil
+	}
+	return m.needSudo(installNeedsSudo(steps))
 }
 
-func (m model) startInstall() (tea.Model, tea.Cmd) {
-	if m.dryRun {
-		m.results = nil
-		for _, st := range m.steps {
-			if st.ItemID == "" || st.Kind == install.KindUpdate || st.Kind == install.KindConfig || st.Kind == install.KindLink {
-				continue
-			}
-			m.results = append(m.results, install.ItemResult{
-				ID: st.ItemID, Method: st.Method, Status: "skipped",
-			})
-		}
-		m.phase = phaseReport
-		m.exitCode = 0
-		return m, nil
-	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	m.cancel = stop
-	m.phase = phaseInstalling
+func (m model) dryReport() model {
 	m.results = nil
-	m.done = nil
-	m.curTitle = ""
-	m.running = false
-	m.status = ""
-	m.runID++
-	ch := make(chan bridgeMsg)
-	m.events = ch
-	runID := m.runID
-	r := m.deps.Runner
-	r.Force = m.force
-	r.Exec = teaExec{ch: ch}
-	r.EUID = os.Geteuid()
-	r.Manager = m.info.Manager
-	if r.Home == "" {
-		r.Home = m.home()
-	}
-	if m.deps.Log != nil {
-		mgr := m.info.Manager
-		logFn := m.deps.Log
-		r.Log = func(results []install.ItemResult) error {
-			return logFn(mgr, results)
+	m.output = nil
+	m.canceled = false
+	m.stepRun = -1
+	m.stepState = make([]string, len(m.steps))
+	for i, st := range m.steps {
+		m.stepState[i] = "skipped"
+		if st.ItemID == "" || st.Kind == install.KindUpdate || st.Kind == install.KindConfig || st.Kind == install.KindLink {
+			continue
 		}
+		m.results = append(m.results, install.ItemResult{
+			ID: st.ItemID, Method: st.Method, Status: "skipped",
+		})
 	}
-	r.Progress = func(title, status string) {
-		ch <- bridgeMsg{kind: kindProgress, title: title, status: status}
-	}
-	steps := append([]install.Step(nil), m.steps...)
-	go func() {
-		results, code := r.RunSteps(ctx, steps)
-		ch <- bridgeMsg{kind: kindDone, results: results, code: code}
-	}()
-	return m, listen(ch, runID)
-}
-
-func (m model) cancelInstall() (tea.Model, tea.Cmd) {
-	if m.cancel != nil {
-		m.cancel()
-	}
-	return m, nil
+	m.phase = phaseReport
+	m.exitCode = 0
+	return m
 }

@@ -1,12 +1,13 @@
 package tui
 
 import (
+	"context"
 	"errors"
 	"strings"
+	"sync"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/ansi"
 	"github.com/shuhi/dotfiles/internal/catalog"
 	"github.com/shuhi/dotfiles/internal/install"
 	"github.com/shuhi/dotfiles/internal/pm"
@@ -146,11 +147,53 @@ func TestSetDepsForce(t *testing.T) {
 	}
 }
 
+type recordExec struct {
+	mu    sync.Mutex
+	argvs [][]string
+	code  int
+}
+
+func (r *recordExec) Run(_ context.Context, argv []string) (string, int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.argvs = append(r.argvs, append([]string(nil), argv...))
+	return "", r.code, nil
+}
+
+func (r *recordExec) calls() [][]string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([][]string(nil), r.argvs...)
+}
+
+// drain feeds the run's bridge messages through Update until the report.
+func drain(t *testing.T, m model, cmd tea.Cmd) (model, []bridgeMsg) {
+	t.Helper()
+	var seen []bridgeMsg
+	for n := 0; n < 200; n++ {
+		if cmd == nil {
+			t.Fatal("run stopped listening")
+		}
+		msg, ok := cmd().(bridgeMsg)
+		if !ok {
+			t.Fatalf("not bridge")
+		}
+		seen = append(seen, msg)
+		next, c := m.Update(msg)
+		m = next.(model)
+		if msg.kind == kindDone {
+			return m, seen
+		}
+		cmd = c
+	}
+	t.Fatal("no kindDone")
+	return m, seen
+}
+
 func TestStartInstallPassesForce(t *testing.T) {
 	for _, force := range []bool{false, true} {
 		m := New(fedoraInfo())
 		m.force = force
-		m.phase = phaseConfirm
 		m.info.Manager = "brew"
 		m.steps = []install.Step{{
 			ItemID:     "whois",
@@ -161,50 +204,31 @@ func TestStartInstallPassesForce(t *testing.T) {
 			Argv:       []string{"brew", "install", "whois"},
 			ProbeFiles: []string{"/usr/bin/whois"},
 		}}
+		rec := &recordExec{}
+		m.deps.Runner.Exec = rec
+		m.deps.Detect = func(string) map[catalog.ID]bool { return nil }
 		m.deps.Runner.Exists = func(path string) bool { return path == "/usr/bin/whois" }
-		next, cmd := m.startInstall()
+		next, cmd := m.launch(sudoCached, nil)
 		mm := next.(model)
-		t.Cleanup(func() {
-			if mm.cancel != nil {
-				mm.cancel()
-			}
-		})
-		if cmd == nil || mm.scroll != 0 {
+		if cmd == nil || mm.phase != phaseInstalling {
 			t.Fatal("start")
 		}
-		var asks [][]string
-		var done bridgeMsg
-		for n := 0; n < 8; n++ {
-			msg, ok := cmd().(bridgeMsg)
-			if !ok {
-				t.Fatal("not bridge")
-			}
-			switch msg.kind {
-			case kindAsk:
-				asks = append(asks, append([]string(nil), msg.argv...))
-				msg.reply <- execReply{}
-			case kindDone:
-				done = msg
-			}
-			if msg.kind == kindDone {
-				break
-			}
-			cmd = listen(mm.events, mm.runID)
-		}
-		if done.kind != kindDone {
-			t.Fatalf("force %v no done asks %v", force, asks)
+		mm, _ = drain(t, mm, cmd)
+		asks := rec.calls()
+		if mm.phase != phaseReport {
+			t.Fatalf("phase %d", mm.phase)
 		}
 		if !force {
-			if len(asks) != 0 || len(done.results) != 1 || done.results[0].Status != "satisfied" {
-				t.Fatalf("skip asks %v %+v", asks, done.results)
+			if len(asks) != 0 || len(mm.results) != 1 || mm.results[0].Status != "satisfied" {
+				t.Fatalf("skip asks %v %+v", asks, mm.results)
 			}
 			continue
 		}
 		if len(asks) != 1 || asks[0][0] != "brew" || asks[0][len(asks[0])-1] != "whois" {
 			t.Fatalf("asks %v", asks)
 		}
-		if len(done.results) != 1 || done.results[0].Status != "ok" || done.results[0].Note != pm.KegOnlyGenericNote {
-			t.Fatalf("%+v", done.results)
+		if len(mm.results) != 1 || mm.results[0].Status != "ok" || mm.results[0].Note != pm.KegOnlyGenericNote {
+			t.Fatalf("%+v", mm.results)
 		}
 	}
 }
@@ -262,7 +286,9 @@ func TestInstalledLessRowUnchecked(t *testing.T) {
 	}
 }
 
-func TestReinstallAsk(t *testing.T) {
+// TestSpaceOnInstalledPicksReinstall: no force-reinstall y/n question any
+// more; space on an installed tool picks it and the run re-downloads it.
+func TestSpaceOnInstalledPicksReinstall(t *testing.T) {
 	m := New(fedoraInfo())
 	m.width = 80
 	m.height = 40
@@ -271,88 +297,31 @@ func TestReinstallAsk(t *testing.T) {
 		Installed: map[catalog.ID]bool{"less": true},
 	})
 	mm := enterCatalog(t, cursorOn(next.(model), "less"))
-	opened, cmd := mm.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if mm.reinstalling() {
+		t.Fatal("reinstalling before pick")
+	}
+	picked, cmd := mm.Update(tea.KeyMsg{Type: tea.KeySpace})
 	if cmd != nil {
 		t.Fatal("space command")
 	}
-	ask := opened.(model)
-	if ask.selected["less"] || ask.force || ask.askName != "less" || ask.askTold || ask.scroll != 0 {
-		t.Fatalf("ask %+v selected %v", ask.askName, ask.selected["less"])
+	sel := picked.(model)
+	if !sel.selected["less"] || sel.phase != phaseBrowsing || !sel.reinstalling() {
+		t.Fatalf("pick less %v phase %d", sel.selected["less"], sel.phase)
 	}
-	view := render(ask, false)
-	if strings.Contains(view, "\x1b") || !strings.Contains(view, "less 已安裝。要強制重新下載嗎？") {
+	view := render(sel, false)
+	if strings.Contains(view, "要強制重新下載嗎？") || strings.Contains(view, "請加上 --force") {
 		t.Fatal(view)
 	}
-	lines := frameLines(view)
-	if len(lines) != ask.height || lines[len(lines)-1] != browsingHelp(ask.keys) {
-		t.Fatalf("frame %d %q", len(lines), lines[len(lines)-1])
+	if line := lineWith(view, "less", "(已安裝)"); line == "" || !strings.Contains(line, "[x]") {
+		t.Fatalf("row %q", line)
 	}
-	if line := lineWith(view, "less", "(已安裝)"); line == "" || strings.Contains(line, "[x]") {
-		t.Fatalf("row hidden %q", line)
+	styled := renderStyled(sel, testRenderer())
+	if strings.Contains(styled, "48;2;") || len(frameLines(styled)) != sel.height {
+		t.Fatal("styled frame")
 	}
-
-	styled := renderStyled(ask, testRenderer())
-	slines := frameLines(styled)
-	if len(slines) != ask.height {
-		t.Fatalf("styled lines %d", len(slines))
-	}
-	qline := lineContaining(styled, "less 已安裝。要強制重新下載嗎？")
-	if qline == "" || strings.Contains(qline, "48;2;") || !strings.Contains(qline, sgrCream) || ansi.StringWidth(qline) != ask.width {
-		t.Fatalf("box %s", qline)
-	}
-	if !strings.Contains(ansi.Strip(slines[len(slines)-1]), "離開") {
-		t.Fatal("footer left the last line")
-	}
-
-	told, cmd := ask.Update(keyRune('y'))
-	if cmd != nil {
-		t.Fatal("y command")
-	}
-	ym := told.(model)
-	yview := render(ym, false)
-	if ym.selected["less"] || ym.force || ym.deps.Runner.Force || ym.phase != phaseBrowsing {
-		t.Fatal("y changed install state")
-	}
-	if !strings.Contains(yview, "請加上 --force 後重新執行") || strings.Contains(yview, "要強制重新下載嗎？") {
-		t.Fatal(yview)
-	}
-	if strings.Contains(yview, "\x1b") {
-		t.Fatal("plain y ansi")
-	}
-
-	for _, k := range []tea.KeyMsg{keyRune('n'), tea.KeyMsg{Type: tea.KeyEsc}, keyRune('q')} {
-		closed, cmd := ask.Update(k)
-		if cmd != nil {
-			t.Fatalf("%s command", k.String())
-		}
-		cm := closed.(model)
-		if cm.selected["less"] || cm.askName != "" || strings.Contains(render(cm, false), "要強制重新下載嗎？") {
-			t.Fatalf("%s left the box", k.String())
-		}
-	}
-
-	snap := copySel(ask.selected)
-	for _, k := range []tea.KeyMsg{
-		keyRune('j'), keyRune('k'), tea.KeyMsg{Type: tea.KeyDown}, tea.KeyMsg{Type: tea.KeyUp},
-		tea.KeyMsg{Type: tea.KeySpace}, tea.KeyMsg{Type: tea.KeyEnter},
-		keyRune('a'), keyRune('A'), keyRune('d'), keyRune('g'), keyRune('G'),
-	} {
-		stayed, cmd := ask.Update(k)
-		sm := stayed.(model)
-		if cmd != nil || sm.cursor != ask.cursor || sm.phase != phaseBrowsing || sm.askName != "less" || sm.askTold || sm.scroll != 0 || !sameSel(sm.selected, snap) {
-			t.Fatalf("%s changed the catalog", k.String())
-		}
-	}
-
-	narrow := ask
-	narrow.width = 12
-	narrow.height = 8
-	nlines := frameLines(render(narrow, false))
-	if len(nlines) != narrow.height || nlines[len(nlines)-1] != browsingHelp(narrow.keys) {
-		t.Fatalf("narrow %d %q", len(nlines), nlines)
-	}
-	if strings.Contains(strings.Join(nlines, "\n"), "less 已安裝。要強制重新下載嗎？") || strings.Contains(nlines[len(nlines)-1], "要強制重新下載") {
-		t.Fatal("question wrapped into the footer")
+	back, _ := sel.Update(tea.KeyMsg{Type: tea.KeySpace})
+	if back.(model).selected["less"] {
+		t.Fatal("second space")
 	}
 }
 
@@ -360,12 +329,12 @@ func TestUninstalledSpaceStillToggles(t *testing.T) {
 	m := cursorOn(New(fedoraInfo()), "zsh")
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
 	mm := next.(model)
-	if !mm.selected["zsh"] || mm.askName != "" || strings.Contains(render(mm, false), "要強制重新下載嗎？") {
+	if !mm.selected["zsh"] || strings.Contains(render(mm, false), "要強制重新下載嗎？") {
 		t.Fatal("uninstalled space")
 	}
 	next, _ = mm.Update(tea.KeyMsg{Type: tea.KeySpace})
 	mm = next.(model)
-	if mm.selected["zsh"] || mm.askName != "" {
+	if mm.selected["zsh"] {
 		t.Fatal("second space")
 	}
 }
@@ -385,12 +354,12 @@ func TestForceSpaceTogglesInstalled(t *testing.T) {
 	next, _ = mm.Update(tea.KeyMsg{Type: tea.KeySpace})
 	mm = next.(model)
 	view := render(mm, false)
-	if !mm.selected["less"] || mm.askName != "" || strings.Contains(view, "要強制重新下載嗎？") || strings.Contains(view, "請加上 --force") {
+	if !mm.selected["less"] || strings.Contains(view, "要強制重新下載嗎？") || strings.Contains(view, "請加上 --force") {
 		t.Fatal(view)
 	}
 	next, _ = mm.Update(tea.KeyMsg{Type: tea.KeySpace})
 	mm = next.(model)
-	if mm.selected["less"] || mm.askName != "" {
+	if mm.selected["less"] {
 		t.Fatal("second toggle")
 	}
 }
@@ -404,17 +373,17 @@ func TestASkipsInstalled(t *testing.T) {
 	mm := enterCatalog(t, next.(model))
 	next, _ = mm.Update(keyRune('a'))
 	mm = next.(model)
-	if mm.selected["less"] || mm.askName != "" {
+	if mm.selected["less"] {
 		t.Fatal("a selected less or opened the box")
 	}
 	next, _ = mm.Update(keyRune('a'))
 	mm = next.(model)
-	if mm.selected["less"] || mm.askName != "" || !mm.selected["git"] {
+	if mm.selected["less"] || !mm.selected["git"] {
 		t.Fatal("a selected less on the way back on")
 	}
 	next, _ = mm.Update(keyRune('A'))
 	mm = next.(model)
-	if mm.selected["less"] || mm.askName != "" {
+	if mm.selected["less"] {
 		t.Fatal("A selected less")
 	}
 }

@@ -99,10 +99,6 @@ func TestKeymapHelpVisible(t *testing.T) {
 	if browsingHelp(m.keys) != browsing {
 		t.Fatalf("built %q", browsingHelp(m.keys))
 	}
-	m.phase = phaseConfirm
-	if !strings.Contains(render(m, false), "操作  y 開始  n/esc 返回") {
-		t.Fatal(render(m, false))
-	}
 	m.phase = phaseInstalling
 	if !strings.Contains(render(m, false), "操作  ctrl+c 取消") {
 		t.Fatal(render(m, false))
@@ -110,7 +106,7 @@ func TestKeymapHelpVisible(t *testing.T) {
 	m.phase = phaseReport
 	m.results = []install.ItemResult{{ID: "git", Status: "ok", Note: "note"}}
 	rep := render(m, false)
-	if !strings.Contains(rep, "操作  任意鍵返回  q 離開") || !strings.Contains(rep, "git  ok  note") {
+	if !strings.Contains(rep, "操作  任意鍵回主頁") || !strings.Contains(rep, "git  ok  note") {
 		t.Fatalf("%s", rep)
 	}
 	m.phase = phaseFailed
@@ -119,35 +115,26 @@ func TestKeymapHelpVisible(t *testing.T) {
 	}
 }
 
-func TestReportQQuitsOtherKeyReturns(t *testing.T) {
+// TestReportAnyKeyGoesHomeKeepsSelection: q no longer quits from the report;
+// every key goes back to the home page and the catalog picks are kept.
+func TestReportAnyKeyGoesHomeKeepsSelection(t *testing.T) {
 	m := New(fedoraInfo())
 	m.phase = phaseReport
+	m.deps.Detect = func(string) map[catalog.ID]bool { return nil }
 	m.selected["git"] = false
 	snap := copySel(m.selected)
-	_, cmd := m.Update(keyRune('q'))
-	if cmd == nil {
-		t.Fatal("q should quit")
-	}
-	if _, ok := cmd().(tea.QuitMsg); !ok {
-		t.Fatal("q did not quit")
-	}
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	if cmd != nil {
-		if _, ok := cmd().(tea.QuitMsg); ok {
-			t.Fatal("ctrl+c should stay")
+	for _, k := range []tea.KeyMsg{keyRune('q'), {Type: tea.KeyCtrlC}} {
+		next, cmd := m.Update(k)
+		if cmd == nil {
+			t.Fatalf("%s: no re-detect", k.String())
 		}
-	}
-	mm := next.(model)
-	if mm.phase != phaseBrowsing {
-		t.Fatalf("phase %d", mm.phase)
-	}
-	if !sameSel(mm.selected, snap) {
-		t.Fatal("selection changed")
-	}
-	next, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	mm = next.(model)
-	if mm.phase != phaseBrowsing || !sameSel(mm.selected, snap) {
-		t.Fatal("enter should return without changing selection")
+		if _, ok := cmd().(tea.QuitMsg); ok {
+			t.Fatalf("%s quit", k.String())
+		}
+		mm := next.(model)
+		if mm.phase != phaseHome || !sameSel(mm.selected, snap) {
+			t.Fatalf("%s: phase %d", k.String(), mm.phase)
+		}
 	}
 }
 
@@ -241,45 +228,15 @@ func TestCatalogEscReturnsHome(t *testing.T) {
 		t.Fatalf("help %q", browsingHelp(m.keys))
 	}
 
-	m.phase = phaseConfirm
-	next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || next.(model).phase != phaseBrowsing {
-		t.Fatal("confirm esc")
-	}
 	m.phase = phaseReport
 	next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil || next.(model).phase != phaseBrowsing {
+	if cmd == nil || next.(model).phase != phaseHome {
 		t.Fatal("report esc")
 	}
 	m.phase = phaseFailed
 	next, cmd = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if cmd != nil || next.(model).phase != phaseFailed {
 		t.Fatal("failed esc")
-	}
-}
-
-func TestAskBeatsEsc(t *testing.T) {
-	m := New(fedoraInfo())
-	m.askName = "less"
-	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	if cmd != nil {
-		t.Fatal("cmd")
-	}
-	mm := next.(model)
-	if mm.phase != phaseBrowsing || mm.askName != "" || mm.askTold {
-		t.Fatal("esc")
-	}
-	m.askName = "less"
-	next, cmd = m.Update(keyRune('y'))
-	mm = next.(model)
-	if cmd != nil || !mm.askTold || mm.askName != "less" || mm.phase != phaseBrowsing || mm.force {
-		t.Fatal("y")
-	}
-	m.askName = "less"
-	next, cmd = m.Update(keyRune('q'))
-	mm = next.(model)
-	if cmd != nil || mm.askName != "" || mm.phase != phaseBrowsing {
-		t.Fatal("q")
 	}
 }
 

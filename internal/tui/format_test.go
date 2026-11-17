@@ -184,17 +184,13 @@ func TestPlainInstalledRows(t *testing.T) {
 		t.Fatalf("width 4 %q", four)
 	}
 
-	m.phase = phaseConfirm
-	m.steps = []install.Step{{Title: "install whois"}}
-	if strings.Contains(render(m, false), "(已安裝)") {
-		t.Fatal("confirm marker")
-	}
+	m.width = 80
 	m.phase = phaseInstalling
-	m.done = []doneLine{{Title: "install whois", Status: "satisfied"}}
-	m.curTitle = "install whois"
 	m.steps = []install.Step{{Title: "install whois"}}
+	m.stepState = []string{"satisfied"}
+	m.curTitle = "install whois"
 	inst := render(m, false)
-	if strings.Contains(inst, "(已安裝)") || !strings.Contains(inst, "satisfied") {
+	if strings.Contains(inst, "(已安裝)") || !strings.Contains(inst, "已安裝  install whois") {
 		t.Fatal(inst)
 	}
 	m.phase = phaseReport

@@ -31,6 +31,11 @@ func uninstallFixture(t *testing.T, installed ...catalog.ID) model {
 		"/usr/bin/jq":      true,
 	}
 	m.deps.Exists = func(p string) bool { return files[p] }
+	m.deps.Runner.XDG = filepath.Join(home, ".config")
+	m.deps.Runner.Bashrc = filepath.Join(home, ".bashrc")
+	m.deps.Runner.Zshrc = filepath.Join(home, ".zshrc")
+	m.deps.Detect = func(string) map[catalog.ID]bool { return map[catalog.ID]bool{} }
+	m.deps.Sudo = &fakeSudo{cached: true}
 	next, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	return next.(model)
 }
@@ -68,12 +73,12 @@ func TestUninstallListsOnlyInstalledRemovable(t *testing.T) {
 	m.width = 100 // descriptions show from 100 columns
 	view := render(m, false)
 	m.width = 80
-	for _, s := range []string{"starship", "jq", "zellij", "python", "移除前會先警告", uninstallNote, "已勾選移除 0", "esc/b 返回首頁", "移除已勾選"} {
+	for _, s := range []string{"starship", "jq", "zellij", "python", "移除時會顯示警告", "已勾選移除 0", "esc/b 返回首頁", "移除已勾選"} {
 		if !strings.Contains(view, s) {
 			t.Errorf("missing %q\n%s", s, view)
 		}
 	}
-	for _, s := range []string{"  git", "  vim", "\n  基礎\n", "(已安裝)"} {
+	for _, s := range []string{"  git", "  vim", "\n  基礎\n", "(已安裝)", "只列出已安裝的工具", "不可移除"} {
 		if strings.Contains(view, s) {
 			t.Errorf("unexpected %q\n%s", s, view)
 		}
@@ -97,7 +102,9 @@ func TestUninstallEmptyList(t *testing.T) {
 	}
 }
 
-func TestUninstallSelectConfirmAndBack(t *testing.T) {
+// TestUninstallEnterStartsDirectly: enter on the selection starts the run;
+// there is no confirm page and no y step.
+func TestUninstallEnterStartsDirectly(t *testing.T) {
 	m := uninstallFixture(t, "starship", "jq")
 	m = press(t, m, kEnter)
 	if m.phase != phaseUninstall || m.status != "尚未勾選任何項目" {
@@ -107,8 +114,9 @@ func TestUninstallSelectConfirmAndBack(t *testing.T) {
 	if !m.uselected["starship"] || m.uselected["jq"] {
 		t.Fatalf("selected %v", m.uselected)
 	}
-	m = press(t, m, kEnter)
-	if m.phase != phaseConfirm || m.mode != modeUninstall {
+	next, cmd := m.Update(kEnter)
+	m = next.(model)
+	if m.phase != phaseInstalling || m.mode != modeUninstall || cmd == nil {
 		t.Fatalf("phase %d", m.phase)
 	}
 	var titles []string
@@ -119,14 +127,34 @@ func TestUninstallSelectConfirmAndBack(t *testing.T) {
 		t.Fatalf("titles %v", titles)
 	}
 	view := render(m, false)
-	if !strings.Contains(view, "將移除下列項目") || !strings.Contains(view, "release-remove starship") {
+	if !strings.Contains(view, "移除中") || !strings.Contains(view, "release-remove starship") || !strings.Contains(view, "ctrl+c 取消") {
 		t.Fatal(view)
 	}
-	m = press(t, m, keyRune('n'))
-	if m.phase != phaseUninstall || !m.uselected["starship"] {
-		t.Fatalf("n back: %d", m.phase)
+	m, _ = drain(t, m, cmd)
+	if m.phase != phaseReport {
+		t.Fatalf("phase %d", m.phase)
 	}
-	// a / A toggle
+	for i, s := range m.stepState {
+		if s != "ok" {
+			t.Fatalf("step %d %q", i, s)
+		}
+	}
+	rep := render(m, false)
+	if !strings.Contains(rep, "移除完成：成功 1") || !strings.Contains(rep, "任意鍵回主頁") {
+		t.Fatal(rep)
+	}
+	next, cmd = m.Update(keyRune('x'))
+	m = next.(model)
+	if m.phase != phaseHome || m.mode != modeInstall || cmd == nil {
+		t.Fatalf("any key home: phase %d", m.phase)
+	}
+	if im, ok := cmd().(installedMsg); !ok || im.runID != m.runID {
+		t.Fatal("home did not re-detect")
+	}
+}
+
+func TestUninstallListKeys(t *testing.T) {
+	m := uninstallFixture(t, "starship", "jq")
 	m = press(t, m, keyRune('A'))
 	if !m.uselected["jq"] || !m.uselected["starship"] {
 		t.Fatalf("A on %v", m.uselected)
@@ -145,35 +173,41 @@ func TestUninstallSelectConfirmAndBack(t *testing.T) {
 	}
 }
 
-func TestUninstallPythonNeedsWarning(t *testing.T) {
+// TestUninstallPythonWarnsWithoutPrompt: the python warning is a line on the
+// progress page; nothing waits for y.
+func TestUninstallPythonWarnsWithoutPrompt(t *testing.T) {
 	m := uninstallFixture(t, "python")
-	m = press(t, m, kSpace, kEnter)
-	if m.phase != phasePythonWarn {
+	rec := &recordExec{}
+	m.deps.Runner.Exec = rec
+	m = press(t, m, kSpace)
+	next, cmd := m.Update(kEnter)
+	m = next.(model)
+	if len(m.usteps) != 1 || len(m.warnings) != 1 || m.warnings[0] != uninstall.PythonWarning {
+		t.Fatalf("steps %+v warnings %v", m.usteps, m.warnings)
+	}
+	if m.phase == phaseSudo {
+		// non-root: the fake sudo says the cache is warm, so the run starts.
+		next, cmd = m.Update(cmd())
+		m = next.(model)
+	}
+	if m.phase != phaseInstalling || cmd == nil {
 		t.Fatalf("phase %d", m.phase)
 	}
 	view := render(m, false)
-	if !strings.Contains(view, uninstall.PythonWarning) || !strings.Contains(view, pythonWarnHelp) {
+	if !strings.Contains(strings.ReplaceAll(view, "\n", ""), uninstall.PythonWarning) || strings.Contains(view, "按 y") || strings.Contains(view, "y 確定") {
 		t.Fatal(view)
 	}
-	for _, k := range []tea.KeyMsg{keyRune('n'), kEsc} {
-		back := press(t, m, k)
-		if back.phase != phaseUninstall || len(back.usteps) != 0 {
-			t.Fatalf("%s: phase %d", k.String(), back.phase)
-		}
+	m, _ = drain(t, m, cmd)
+	calls := rec.calls()
+	if len(calls) != 1 || !strings.HasSuffix(strings.Join(calls[0], " "), "dnf remove -y python3") {
+		t.Fatalf("argv %v", calls)
 	}
-	if other := press(t, m, keyRune('x'), kEnter); other.phase != phasePythonWarn {
-		t.Fatal("only y confirms")
-	}
-	m = press(t, m, keyRune('y'))
-	if m.phase != phaseConfirm || len(m.usteps) != 1 {
-		t.Fatalf("phase %d steps %+v", m.phase, m.usteps)
-	}
-	if got := strings.Join(m.usteps[0].Argv, " "); !strings.HasSuffix(got, "dnf remove -y python3") {
-		t.Fatalf("argv %q", got)
+	if !strings.Contains(strings.ReplaceAll(render(m, false), "\n", ""), uninstall.PythonWarning) {
+		t.Fatal("warning left the report")
 	}
 }
 
-func TestUninstallReportReturnsToList(t *testing.T) {
+func TestUninstallReportReturnsHome(t *testing.T) {
 	m := uninstallFixture(t, "jq")
 	m.phase = phaseInstalling
 	m.runID = 7
@@ -185,8 +219,8 @@ func TestUninstallReportReturnsToList(t *testing.T) {
 	if !strings.Contains(render(m, false), "jq  removed") {
 		t.Fatal(render(m, false))
 	}
-	m = press(t, m, keyRune('x'))
-	if m.phase != phaseUninstall || m.status != uninstallNote {
+	m = press(t, m, keyRune('q'))
+	if m.phase != phaseHome || m.status != "" {
 		t.Fatalf("phase %d", m.phase)
 	}
 }
