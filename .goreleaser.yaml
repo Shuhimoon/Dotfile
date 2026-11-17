@@ -58,7 +58,8 @@ checksum:
 
 changelog:
   use: git
-  sort: asc
+  # empty sort keeps git log order: newest commit first, by date (asc/desc sort by message text)
+  sort: ""
   filters:
     exclude:
       - "^Merge "
