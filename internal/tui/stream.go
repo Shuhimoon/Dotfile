@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"runtime"
 	"strings"
 	"sync"
 	"syscall"
@@ -89,9 +90,16 @@ func (e streamExec) Run(ctx context.Context, argv []string) (string, int, error)
 	}
 	useStdin := e.mode == sudoStdin && argv[0] == "sudo"
 	argv = sudoArgv(argv, e.mode)
+	argv = scoopArgv(argv, exec.LookPath, statExists)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
 	// SIGTERM lets sudo relay the signal and package managers clean up.
-	cmd.Cancel = func() error { return cmd.Process.Signal(syscall.SIGTERM) }
+	// Windows has no SIGTERM: kill the process there.
+	cmd.Cancel = func() error {
+		if runtime.GOOS == "windows" {
+			return cmd.Process.Kill()
+		}
+		return cmd.Process.Signal(syscall.SIGTERM)
+	}
 	cmd.WaitDelay = 5 * time.Second
 	if useStdin {
 		cmd.Stdin = bytes.NewReader(append(append([]byte(nil), e.pw...), '\n'))

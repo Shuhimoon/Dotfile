@@ -189,15 +189,19 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			return 2
 		}
 		for _, id := range only {
-			if _, ok := catalog.ItemByID(catalog.ID(id)); !ok {
+			if !knownApplyID(catalog.ID(id)) {
 				fmt.Fprintf(stderr, "未知的 ID %s\n", id)
 				return 2
 			}
 			ids = append(ids, catalog.ID(id))
 		}
 	}
+	if runtime.GOOS == "windows" {
+		fmt.Fprintln(stderr, "Windows 不支援 apply：請直接執行 tools，用互動介面以 Scoop 安裝")
+		return 2
+	}
 	if runtime.GOOS != "linux" && runtime.GOOS != "darwin" {
-		fmt.Fprintf(stderr, "不支援的 GOOS=%s：v1 只支援 linux 與 darwin\n", runtime.GOOS)
+		fmt.Fprintf(stderr, "不支援的 GOOS=%s：只支援 linux、darwin 與 windows（互動介面）\n", runtime.GOOS)
 		return 2
 	}
 	osr, err := platform.LoadOSRelease()
@@ -406,4 +410,14 @@ func isTTY(f *os.File) bool {
 		return false
 	}
 	return fi.Mode()&os.ModeCharDevice != 0
+}
+
+// knownApplyID is true for ids in the Linux/macOS catalog (apply never runs on Windows).
+func knownApplyID(id catalog.ID) bool {
+	for _, known := range catalog.IDs() {
+		if known == id {
+			return true
+		}
+	}
+	return false
 }

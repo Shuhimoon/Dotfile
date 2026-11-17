@@ -19,6 +19,9 @@ func DetectManager(goos string, osr platform.OSRelease, lookup func(bin string) 
 		lookup = func(string) bool { return false }
 	}
 	switch goos {
+	case "windows":
+		// Scoop is bootstrapped by the first install run when it is missing.
+		return Scoop, nil
 	case "darwin":
 		if !lookup("brew") {
 			return "", ErrBrewMissing

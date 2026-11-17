@@ -16,7 +16,7 @@ const uninstallEmpty = "沒有可移除的已安裝工具"
 func (m model) removableIDs() []catalog.ID {
 	var out []catalog.ID
 	for _, id := range m.flat {
-		if m.installed[id] && uninstall.Removable(id) && uninstall.Supported(id, m.info.Manager) {
+		if m.installed[id] && uninstall.RemovableOn(m.goos(), id) && uninstall.SupportedOn(m.goos(), id, m.info.Manager) {
 			out = append(out, id)
 		}
 	}
@@ -45,7 +45,7 @@ func (m model) uninstallRows() (rows []catalogRow, cursorAt int) {
 				added = true
 			}
 			it.Default = false
-			if _, warn := uninstall.NeedsWarning(it.ID); warn {
+			if _, warn := uninstall.WarningOn(m.goos(), it.ID); warn {
 				it.Description = "移除時會顯示警告"
 			}
 			row := catalogRow{Kind: rowItem, Item: it, Selected: m.uselected[it.ID], Cat: ci}
@@ -170,11 +170,7 @@ func (m model) exists() func(string) bool {
 // dry shows the plan (commands, files, rc blocks) in white without running it.
 func (m model) startUninstall(dry bool) (tea.Model, tea.Cmd) {
 	sel := m.uninstallSelected()
-	steps, err := uninstall.BuildSteps(sel, m.info.Manager, os.Geteuid(), uninstall.Probe{
-		Home:   m.home(),
-		GoRoot: m.deps.Runner.GoRoot,
-		Exists: m.exists(),
-	})
+	steps, err := m.uninstallSteps(sel)
 	if err != nil {
 		m.status = err.Error()
 		return m, nil
@@ -190,7 +186,7 @@ func (m model) startUninstall(dry bool) (tea.Model, tea.Cmd) {
 	}
 	m.warnings = nil
 	for _, id := range sel {
-		if text, warn := uninstall.NeedsWarning(id); warn {
+		if text, warn := uninstall.WarningOn(m.goos(), id); warn {
 			m.warnings = append(m.warnings, text)
 		}
 	}
@@ -209,4 +205,15 @@ func (m model) startUninstall(dry bool) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 	return m.needSudo(uninstallNeedsSudo(steps))
+}
+
+func (m model) uninstallSteps(sel []catalog.ID) ([]uninstall.Step, error) {
+	if m.windows() {
+		return uninstall.BuildWindowsSteps(sel)
+	}
+	return uninstall.BuildSteps(sel, m.info.Manager, os.Geteuid(), uninstall.Probe{
+		Home:   m.home(),
+		GoRoot: m.deps.Runner.GoRoot,
+		Exists: m.exists(),
+	})
 }

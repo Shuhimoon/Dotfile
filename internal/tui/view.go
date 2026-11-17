@@ -216,7 +216,7 @@ func horizontalInset(width int) int {
 
 func catalogNameWidth() int {
 	maxW := 0
-	for _, c := range catalog.All() {
+	for _, c := range append(catalog.All(), catalog.Windows()...) {
 		for _, it := range c.Items {
 			if w := ansi.StringWidth(it.Name); w > maxW {
 				maxW = w

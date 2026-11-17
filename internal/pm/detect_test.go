@@ -65,9 +65,12 @@ func TestDetectManager(t *testing.T) {
 		t.Fatal("ambiguous reported as missing")
 	}
 
-	_, err = pm.DetectManager("windows", platform.OSRelease{}, has("dnf"))
+	if mgr, err := pm.DetectManager("windows", platform.OSRelease{}, has()); err != nil || mgr != pm.Scoop {
+		t.Fatalf("windows: %q %v", mgr, err)
+	}
+	_, err = pm.DetectManager("freebsd", platform.OSRelease{}, has("dnf"))
 	if err == nil || !strings.Contains(err.Error(), "linux") || !strings.Contains(err.Error(), "darwin") {
-		t.Fatalf("windows: %v", err)
+		t.Fatalf("freebsd: %v", err)
 	}
 
 	_, err = pm.DetectManager("linux", platform.OSRelease{ID: "nixos"}, has("nix"))

@@ -28,6 +28,7 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
@@ -40,10 +41,18 @@ builds:
         goarch: "386"
       - goos: darwin
         goarch: arm
+      # Windows: amd64 and arm64 only (Scoop catalog: wezterm, python, git)
+      - goos: windows
+        goarch: "386"
+      - goos: windows
+        goarch: arm
 
 archives:
   - id: tools
     formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
     # tools_0.1.0_linux_amd64.tar.gz, tools_0.1.0_linux_armv7.tar.gz, ...
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}

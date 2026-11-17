@@ -17,7 +17,7 @@
    - `tab` 切到名稱欄。名稱只能用英數字和 `. _ -`，開頭必須是英數字，最多 64 字，不能有斜線，不能是 `*.pub`、`config`、`known_hosts` 這類名稱。
    - 名稱欄按 `enter`（或任一欄按 `ctrl+s`）儲存。同名檔案已存在就拒絕並請你換名稱，**不覆蓋**（不用 y 確認）。
    - 儲存前會把 CRLF 換成 LF、去掉前後空白、補上結尾換行，再用 `golang.org/x/crypto/ssh` 的 `ParseRawPrivateKey` 檢查；有密碼保護的鑰匙照原樣接受。錯誤訊息不會帶出鑰匙內容。
-   - 檔案權限 600，`~/.ssh` 與 `~/.ssh/keys` 是 700。鑰匙文字只在貼上時留在記憶體，儲存或離開時清掉，不會寫進紀錄。
+   - 檔案權限 600，`~/.ssh` 與 `~/.ssh/keys` 是 700。Windows 沒有 Unix 權限，改用 `icacls <檔案> /inheritance:r /grant:r %USERNAME%:F` 只留自己的完整權限（盡力而為：失敗不會擋住流程）。鑰匙文字只在貼上時留在記憶體，儲存或離開時清掉，不會寫進紀錄。
    - `esc`：有現成鑰匙時回到選擇頁，否則略過設定。
 3. **寫 `~/.ssh/config`**（權限 600），內容是受管理的區塊：
 
@@ -37,4 +37,4 @@
 
 ## 移除
 
-移除 git 時（Mac／Linux 的 git 在「基礎」類不能移除，所以實際上只有 Windows 會用到）會多一個 `ssh-config git` 步驟：只刪 config 裡的受管理區塊，鑰匙檔保留。`d` 計畫頁也會列出這一步。
+移除 git 時（Mac／Linux 的 git 在「基礎」類不能移除，所以實際上只有 Windows 會用到：`scoop uninstall git` 之後）會多一個 `ssh-config git` 步驟：只刪 config 裡的受管理區塊，鑰匙檔保留。`d` 計畫頁也會列出這一步。

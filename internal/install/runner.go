@@ -127,6 +127,27 @@ func (r *Runner) RunSteps(ctx context.Context, steps []Step) ([]ItemResult, int)
 				results = replaceResult(results, updated)
 			}
 			r.note(st.Title, status)
+		case KindScoopBootstrap:
+			res, stop, canceled := r.doScoopBootstrap(ctx, st)
+			if canceled {
+				_ = r.writeLog(results)
+				return results, 1
+			}
+			r.note(st.Title, res.Status)
+			if res.Status != "satisfied" {
+				results = append(results, res)
+			}
+			if stop {
+				_ = r.writeLog(results)
+				return results, 2
+			}
+		case KindScoopBucket:
+			status, canceled := r.doScoopBucket(ctx, st)
+			if canceled {
+				_ = r.writeLog(results)
+				return results, 1
+			}
+			r.note(st.Title, status)
 		case KindProbe:
 			res := r.doProbe(st)
 			results = append(results, res)

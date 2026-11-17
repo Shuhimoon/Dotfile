@@ -128,7 +128,6 @@ type model struct {
 func New(info platform.Info) model {
 	m := model{
 		info:      info,
-		cats:      catalog.All(),
 		selected:  map[catalog.ID]bool{},
 		uselected: map[catalog.ID]bool{},
 		width:     80,
@@ -137,12 +136,7 @@ func New(info platform.Info) model {
 		keys:      newKeyMap(),
 		stepRun:   -1,
 	}
-	for _, c := range m.cats {
-		for _, it := range c.Items {
-			m.flat = append(m.flat, it.ID)
-			m.selected[it.ID] = it.Default
-		}
-	}
+	m.useCatalog(runtime.GOOS)
 	if info.OS.GOOS == "" && info.Arch.GOARCH == "" && info.Manager == "" && info.OS.SystemText == "" {
 		m.phase = phaseDetecting
 	}
@@ -153,6 +147,7 @@ func SetDeps(m tea.Model, d Deps) tea.Model {
 	if mm, ok := m.(model); ok {
 		mm.deps = d
 		mm.force = d.Force
+		mm.useCatalog(mm.goos())
 		return mm
 	}
 	return m
@@ -187,6 +182,9 @@ type installedMsg struct {
 
 func liveDetect(uname string) tea.Msg {
 	goos := runtime.GOOS
+	if goos == "windows" {
+		return windowsDetect(runtime.GOARCH)
+	}
 	if uname == "" {
 		uname = platform.UnameM()
 	}
@@ -211,6 +209,9 @@ func liveDetect(uname string) tea.Msg {
 }
 
 func detectInstalled(manager string) map[catalog.ID]bool {
+	if manager == pm.Scoop {
+		return install.WindowsInstalled(winEnv(userHome()), statExists)
+	}
 	plans, err := install.ResolveAll(catalog.IDs(), manager)
 	if err != nil {
 		return nil

@@ -74,7 +74,7 @@ func item(id string, def bool, desc string) Item {
 }
 
 func ItemByID(id ID) (Item, bool) {
-	for _, c := range All() {
+	for _, c := range append(All(), Windows()...) {
 		for _, it := range c.Items {
 			if it.ID == id {
 				return it, true

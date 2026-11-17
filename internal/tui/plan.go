@@ -23,6 +23,8 @@ func installPlan(steps []install.Step, home string) []string {
 func installDetail(st install.Step, home string) string {
 	var s string
 	switch {
+	case st.Kind == install.KindScoopBootstrap:
+		s = "沒有 Scoop 時執行：" + strings.Join(st.Argv, " ")
 	case len(st.Argv) > 0:
 		s = strings.Join(st.Argv, " ")
 	case st.Kind == install.KindRelease:

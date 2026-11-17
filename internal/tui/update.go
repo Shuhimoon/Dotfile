@@ -1,8 +1,6 @@
 package tui
 
 import (
-	"os"
-
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/shuhi/dotfiles/internal/catalog"
@@ -229,12 +227,7 @@ func (m *model) toggleIDs(ids []catalog.ID) {
 func (m model) startInstall(dry bool) (tea.Model, tea.Cmd) {
 	m.mode = modeInstall
 	m.warnings = nil
-	plans, err := install.ResolveAll(m.selectedIDs(), m.info.Manager)
-	if err != nil {
-		m.status = err.Error()
-		return m, nil
-	}
-	steps, err := install.BuildSteps(plans, os.Geteuid(), m.home())
+	steps, err := m.installSteps()
 	if err != nil {
 		m.status = err.Error()
 		return m, nil
