@@ -42,11 +42,11 @@ func (k keyMap) browsing() []key.Binding {
 
 func (k keyMap) uninstalling() []key.Binding {
 	remove := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "移除已勾選"))
-	return []key.Binding{k.Up, k.Down, k.Toggle, remove, k.CatAll, k.All, k.Top, k.Bottom, k.Back, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Toggle, remove, k.CatAll, k.All, k.Dry, k.Top, k.Bottom, k.Back, k.Quit}
 }
 
 func uninstallHelp(k keyMap) string {
-	parts := make([]string, 0, 10)
+	parts := make([]string, 0, 11)
 	for _, b := range k.uninstalling() {
 		h := b.Help()
 		parts = append(parts, h.Key+" "+h.Desc)

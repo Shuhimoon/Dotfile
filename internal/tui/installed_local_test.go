@@ -39,3 +39,17 @@ func TestMarksLocalInstalls(t *testing.T) {
 		t.Fatalf("empty home must skip home probes: %v", got)
 	}
 }
+
+func TestMarksZigTarball(t *testing.T) {
+	home := "/home/u"
+	for _, mgr := range []string{"apt", "yum", "dnf"} {
+		plans, err := install.ResolveAll([]catalog.ID{"zig"}, mgr)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := marksFromPlans(plans, home, func(p string) bool { return p == home+"/.local/bin/zig" }, false)
+		if !got["zig"] {
+			t.Errorf("%s: tarball zig not marked", mgr)
+		}
+	}
+}

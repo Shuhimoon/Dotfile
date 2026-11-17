@@ -167,6 +167,19 @@ func specs() map[catalog.ID]itemSpec {
 			atThen("python3", "/usr/bin/python3"),
 			atThen("python", "/opt/homebrew/bin/python3,/usr/local/bin/python3"),
 		}},
+		// zig: distro packages where they exist; Debian/Ubuntu and yum systems have no
+		// reliable package, so they use the official ziglang.org tarball (sha256 from
+		// index.json plus minisign). The tarball is also the fallback when a package is missing.
+		"zig": {cell: [8]string{
+			"@rel",
+			atThen("zig", "/usr/bin/zig"),
+			"@rel",
+			atThen("zig", "/usr/bin/zig"),
+			atThen("zig", "/usr/bin/zig"),
+			atThen("zig", "/usr/bin/zig"),
+			atThen("zig", "/usr/bin/zig"),
+			atThen("zig", "/opt/homebrew/bin/zig,/usr/local/bin/zig"),
+		}, repo: "ziglang.org/zig", fb: "release"},
 		"node":  {cell: with(base(atThen("nodejs", "/usr/bin/node")), "brew", atThen("node", "/opt/homebrew/bin/node,/usr/local/bin/node,/usr/bin/node"))},
 		"make":  {cell: with(base(atThen("make", "/usr/bin/make")), "brew", "@pre:/usr/bin/make")},
 		"cmake": {cell: with(base(atThen("cmake", "/usr/bin/cmake")), "brew", atThen("cmake", "/opt/homebrew/bin/cmake,/usr/local/bin/cmake,/usr/bin/cmake"))},

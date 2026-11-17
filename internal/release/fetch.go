@@ -137,6 +137,9 @@ func (c *Client) Download(ctx context.Context, url, dest string) error {
 }
 
 func (c *Client) Install(ctx context.Context, repo, home string, q AssetQuery) error {
+	if repo == ZigRepo {
+		return c.InstallZig(ctx, home, q)
+	}
 	rel, err := c.Latest(ctx, repo)
 	if err != nil {
 		return err

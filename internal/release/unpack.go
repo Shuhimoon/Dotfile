@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	maxUnpackBytes = 512 << 20
-	maxUnpackFiles = 20000
+	maxUnpackBytes = 1 << 30 // the zig tarball unpacks to several hundred MiB
+	maxUnpackFiles = 100000  // zig ships tens of thousands of libc headers
 )
 
 func UnpackArchive(archivePath, dest string) error {

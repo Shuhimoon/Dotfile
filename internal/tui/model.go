@@ -78,6 +78,8 @@ type model struct {
 	events    chan bridgeMsg
 	status    string
 	dryRun    bool
+	// plan is the d-key plan text, shown in white on the report page.
+	plan      []string
 	exitCode  int
 	runID     int
 	cancel    context.CancelFunc

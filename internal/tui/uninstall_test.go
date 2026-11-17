@@ -285,3 +285,17 @@ func TestContainersCategoryInInstallAndUninstall(t *testing.T) {
 		}
 	}
 }
+
+func TestFastfetchInShellCategory(t *testing.T) {
+	m := New(fedoraInfo())
+	m.width, m.height = 160, 80
+	view := render(m, false)
+	sh, ed := strings.Index(view, "Shell"), strings.Index(view, "編輯器")
+	ff := strings.Index(view, "fastfetch")
+	if sh < 0 || ed < 0 || ff < sh || ff > strings.Index(view, "檔案搜尋") {
+		t.Fatalf("fastfetch not under Shell\n%s", view)
+	}
+	if strings.Contains(view[ed:], "fastfetch") {
+		t.Fatal("fastfetch still under 編輯器")
+	}
+}

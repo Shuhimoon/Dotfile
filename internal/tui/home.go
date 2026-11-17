@@ -31,6 +31,8 @@ const (
 	homeKeyColor lipgloss.Color = "#9EE2F0"
 	// failColor marks a failed step on the progress page (text only).
 	failColor lipgloss.Color = "#F28B82"
+	// planColor is plain white for the d-key plan list (foreground only).
+	planColor lipgloss.Color = "#FFFFFF"
 
 	cardLabelW = 6
 )

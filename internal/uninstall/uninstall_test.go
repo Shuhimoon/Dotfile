@@ -51,7 +51,7 @@ func TestRemovable(t *testing.T) {
 			t.Errorf("%s removable", id)
 		}
 	}
-	for _, id := range []catalog.ID{"zsh", "starship", "eza", "fzf", "zellij", "mitos", "go", "rust", "python", "node", "make", "pkg-config", "docker", "podman"} {
+	for _, id := range []catalog.ID{"zsh", "starship", "eza", "fzf", "zellij", "mitos", "go", "rust", "python", "node", "make", "pkg-config", "docker", "podman", "zig"} {
 		if !uninstall.Removable(id) {
 			t.Errorf("%s not removable", id)
 		}
@@ -119,6 +119,15 @@ func TestBuildSteps(t *testing.T) {
 		{"podman on arch", []catalog.ID{"podman"}, "pacman", 1000,
 			uninstall.Probe{Home: h, Exists: set("/usr/bin/podman")},
 			[]want{{"remove podman", "sudo pacman -R --noconfirm podman"}}},
+		{"zig tarball on ubuntu removes the tree", []catalog.ID{"zig"}, "apt", 1000,
+			uninstall.Probe{Home: h, Exists: set(h + "/.local/bin/zig")},
+			[]want{{"release-remove zig", ""}}},
+		{"zig package on fedora", []catalog.ID{"zig"}, "dnf", 1000,
+			uninstall.Probe{Home: h, Exists: set("/usr/bin/zig")},
+			[]want{{"remove zig", "sudo dnf remove -y zig"}}},
+		{"zig on fedora from the tarball fallback", []catalog.ID{"zig"}, "dnf", 1000,
+			uninstall.Probe{Home: h, Exists: set(h + "/.local/bin/zig")},
+			[]want{{"release-remove zig", ""}}},
 		{"go tarball non-root uses sudo rm", []catalog.ID{"go"}, "dnf", 1000,
 			uninstall.Probe{Home: h, GoRoot: "/usr/local", Exists: set("/usr/local/go/bin/go")},
 			[]want{{"go-tarball-remove go", "sudo rm -rf /usr/local/go"}, {"shell-rc go", ""}}},
@@ -360,6 +369,31 @@ func TestRunRejectsTamperedSteps(t *testing.T) {
 		results, code := r.Run(context.Background(), []uninstall.Step{st})
 		if code != 1 || results[0].Status != "failed" || len(ex.calls) != 0 {
 			t.Errorf("%+v ran: %d %+v %v", st, code, results, ex.calls)
+		}
+	}
+}
+
+func TestRunRemovesZigTarball(t *testing.T) {
+	home := t.TempDir()
+	share := filepath.Join(home, ".local", "share", "zig")
+	top := filepath.Join(share, "zig-x86_64-linux-0.17.1")
+	put(t, filepath.Join(top, "zig"), "zig")
+	put(t, filepath.Join(top, "lib", "std", "std.zig"), "std")
+	bin := filepath.Join(home, ".local", "bin", "zig")
+	os.MkdirAll(filepath.Dir(bin), 0o755)
+	if err := os.Symlink(filepath.Join(top, "zig"), bin); err != nil {
+		t.Fatal(err)
+	}
+	steps, err := uninstall.BuildSteps([]catalog.ID{"zig"}, "apt", 1000, uninstall.Probe{Home: home, Exists: set(bin)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results, code := (&uninstall.Runner{Home: home}).Run(context.Background(), steps); code != 0 {
+		t.Fatalf("%d %+v", code, results)
+	}
+	for _, p := range []string{bin, top, share} {
+		if _, err := os.Lstat(p); !os.IsNotExist(err) {
+			t.Errorf("%s kept", p)
 		}
 	}
 }

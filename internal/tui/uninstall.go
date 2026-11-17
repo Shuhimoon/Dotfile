@@ -134,7 +134,13 @@ func (m model) uninstallKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.status = "尚未勾選任何項目"
 			return m, nil
 		}
-		return m.startUninstall()
+		return m.startUninstall(false)
+	case key.Matches(k, m.keys.Dry):
+		if len(m.uninstallSelected()) == 0 {
+			m.status = "尚未勾選任何項目"
+			return m, nil
+		}
+		return m.startUninstall(true)
 	}
 	return m, nil
 }
@@ -161,7 +167,8 @@ func (m model) exists() func(string) bool {
 
 // startUninstall goes straight from the list to the work: no y/n step. The
 // python warning is shown on the progress page and does not block.
-func (m model) startUninstall() (tea.Model, tea.Cmd) {
+// dry shows the plan (commands, files, rc blocks) in white without running it.
+func (m model) startUninstall(dry bool) (tea.Model, tea.Cmd) {
 	sel := m.uninstallSelected()
 	steps, err := uninstall.BuildSteps(sel, m.info.Manager, os.Geteuid(), uninstall.Probe{
 		Home:   m.home(),
@@ -188,7 +195,18 @@ func (m model) startUninstall() (tea.Model, tea.Cmd) {
 		}
 	}
 	m.mode = modeUninstall
-	m.dryRun = false
+	m.dryRun = dry
 	m.status = ""
+	if dry {
+		m.plan = uninstallPlan(steps, m.home())
+		m.results = nil
+		m.output = nil
+		m.canceled = false
+		m.stepRun = -1
+		m.stepState = make([]string, len(m.steps))
+		m.phase = phaseReport
+		m.exitCode = 0
+		return m, nil
+	}
 	return m.needSudo(uninstallNeedsSudo(steps))
 }

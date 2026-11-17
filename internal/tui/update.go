@@ -87,7 +87,11 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m.cancelRun()
 		}
 	case phaseReport:
-		// Any key, q included, returns to the home page.
+		// The d-key plan goes back to its list; after a real run any key,
+		// q included, returns to the home page.
+		if m.dryRun {
+			return m.backToList()
+		}
 		return m.goHome()
 	}
 	return m, nil
@@ -184,21 +188,33 @@ func (m model) idsInCategory(catID string) []catalog.ID {
 	return ids
 }
 
+// toggleIDs is a and A: tick every target unless all are ticked, then clear
+// them. Installed tools are left alone so a re-download is never picked by
+// accident, except when every target is installed: then a/A toggles those
+// (they are downloaded again) and the status line says so, instead of the
+// key silently doing nothing.
 func (m *model) toggleIDs(ids []catalog.ID) {
-	allOn := true
+	var targets []catalog.ID
 	for _, id := range ids {
-		if m.installed[id] {
-			continue
+		if !m.installed[id] {
+			targets = append(targets, id)
 		}
+	}
+	m.status = ""
+	if len(targets) == 0 {
+		targets = ids
+		if len(ids) > 0 {
+			m.status = "這些都已安裝：勾選的會重新下載"
+		}
+	}
+	allOn := len(targets) > 0
+	for _, id := range targets {
 		if !m.selected[id] {
 			allOn = false
 			break
 		}
 	}
-	for _, id := range ids {
-		if m.installed[id] {
-			continue
-		}
+	for _, id := range targets {
 		m.selected[id] = !allOn
 	}
 }
@@ -232,6 +248,7 @@ func (m model) startInstall(dry bool) (tea.Model, tea.Cmd) {
 }
 
 func (m model) dryReport() model {
+	m.plan = installPlan(m.steps, m.home())
 	m.results = nil
 	m.output = nil
 	m.canceled = false

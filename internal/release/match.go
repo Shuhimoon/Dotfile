@@ -45,6 +45,7 @@ var specs = map[string]Spec{
 	"junegunn/fzf":            {Repo: "junegunn/fzf", BinaryName: "fzf", Layout: LayoutBinDirect},
 	"neovim/neovim":           {Repo: "neovim/neovim", BinaryName: "nvim", Layout: LayoutTree, ShareSubdir: "nvim", SymlinkRel: "bin/nvim"},
 	"mitos-editor/mitos":      {Repo: "mitos-editor/mitos", BinaryName: "ms", Layout: LayoutTree, ShareSubdir: "mitos", SymlinkRel: "ms"},
+	ZigRepo:                   {Repo: ZigRepo, BinaryName: "zig", Layout: LayoutTree, ShareSubdir: "zig", SymlinkRel: "zig"},
 }
 
 func unsupported(goarch string) error {

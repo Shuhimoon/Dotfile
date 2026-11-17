@@ -238,10 +238,25 @@ func (m model) redetect() tea.Cmd {
 }
 
 // goHome leaves the report: any key lands on the home page, re-detected.
+// backToList leaves the d-key plan for the list it came from, ticks kept.
+func (m model) backToList() (tea.Model, tea.Cmd) {
+	m.dryRun = false
+	m.plan = nil
+	m.warnings = nil
+	m.status = ""
+	if m.mode == modeUninstall {
+		m.phase = phaseUninstall
+	} else {
+		m.phase = phaseBrowsing
+	}
+	return m, nil
+}
+
 func (m model) goHome() (tea.Model, tea.Cmd) {
 	m.phase = phaseHome
 	m.mode = modeInstall
 	m.status = ""
+	m.plan = nil
 	m.dryRun = false
 	m.warnings = nil
 	return m, m.redetect()
@@ -258,6 +273,7 @@ const (
 	toneMuted
 	toneWarn
 	toneOut
+	tonePlain // white: the d-key plan
 )
 
 type pline struct {
@@ -333,7 +349,7 @@ func (m model) progressHead() pline {
 		return pline{text, toneHead}
 	}
 	if m.dryRun {
-		return pline{"只顯示計畫，沒有執行", toneHead}
+		return pline{"只顯示計畫，沒有執行", tonePlain}
 	}
 	if m.canceled {
 		return pline{fmt.Sprintf("%s已取消（%d/%d）", verb, cur, total), toneWarn}
@@ -402,6 +418,13 @@ func progressLines(m model, bodyH int) []pline {
 	}
 	if m.phase == phaseReport && len(m.results) > 0 {
 		list = m.resultLines()
+		focus = 0
+	}
+	if m.phase == phaseReport && m.dryRun {
+		list = make([]pline, 0, len(m.plan))
+		for _, s := range m.plan {
+			list = append(list, pline{s, tonePlain})
+		}
 		focus = 0
 	}
 	room := bodyH - len(lines)
@@ -480,6 +503,8 @@ func paintProgress(p palette, m model, bodyH int) []string {
 			fg = p.gold
 		case toneOut:
 			fg = p.sand
+		case tonePlain:
+			fg = planColor
 		}
 		text := fitLine(strings.TrimRight(l.text, " "), m.width)
 		out[i] = p.padTo(p.ink(text, fg, p.bark, bold), m.width, p.bark)

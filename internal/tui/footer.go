@@ -47,6 +47,9 @@ func footerHints(m model) []hint {
 	case phaseInstalling:
 		return []hint{{Key: "操作"}, {Key: "ctrl+c", Desc: "取消"}}
 	case phaseReport:
+		if m.dryRun {
+			return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: dryBackDesc(m)}}
+		}
 		return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: "回主頁"}}
 	default:
 		hints := []hint{{Key: "操作"}}
@@ -198,6 +201,9 @@ func plainHelp(m model) string {
 	case phaseInstalling:
 		return installingHelp
 	case phaseReport:
+		if m.dryRun {
+			return "操作  任意鍵 " + dryBackDesc(m)
+		}
 		return reportHelp
 	default:
 		return browsingHelp(m.keys)

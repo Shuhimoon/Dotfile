@@ -33,6 +33,7 @@ func All() []Category {
 		{ID: "shell", Title: "Shell", Items: []Item{
 			item("zsh", false, ""),
 			item("starship", false, ""),
+			item("fastfetch", false, ""),
 		}},
 		{ID: "files", Title: "檔案搜尋", Items: []Item{
 			item("eza", true, ""),
@@ -46,7 +47,6 @@ func All() []Category {
 		{ID: "editors", Title: "編輯器", Items: []Item{
 			item("neovim", false, ""),
 			item("zellij", true, ""),
-			item("fastfetch", false, ""),
 			item("mitos", true, "執行檔 ms"),
 		}},
 		{ID: "languages", Title: "語言", Items: []Item{
@@ -54,6 +54,7 @@ func All() []Category {
 			item("rust", false, ""),
 			item("python", false, ""),
 			item("node", false, ""),
+			item("zig", false, "Debian/Ubuntu 用 ziglang.org 官方版"),
 		}},
 		{ID: "build", Title: "編譯", Items: []Item{
 			item("make", false, ""),

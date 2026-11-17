@@ -9,7 +9,7 @@ import (
 	"github.com/shuhi/dotfiles/internal/pm"
 )
 
-// Literal 34×8 expectations. Do not derive these from names.go.
+// Literal 35×8 expectations. Do not derive these from names.go.
 //
 //	rel                     primary release
 //	xcode                   xcode-clt
@@ -55,6 +55,7 @@ var matrix = map[string][8]string{
 	"pkg-config": {"then:pkg-config:/usr/bin/pkg-config", "then:pkgconf-pkg-config:/usr/bin/pkg-config", "then:pkgconfig:/usr/bin/pkg-config", "then:pkgconf:/usr/bin/pkg-config", "then:pkg-config:/usr/bin/pkg-config", "then:pkgconf:/usr/bin/pkg-config", "then:pkg-config:/usr/bin/pkg-config", "then:pkgconf:/opt/homebrew/bin/pkg-config,/usr/local/bin/pkg-config"},
 	"docker":     {"then:docker.io:/usr/bin/docker", "then:moby-engine|docker-compose:/usr/bin/docker", "then:docker:/usr/bin/docker", "then:docker|docker-compose:/usr/bin/docker", "then:docker|docker-compose:/usr/bin/docker", "then:docker|docker-cli-compose:/usr/bin/docker", "then:docker|docker-compose:/usr/bin/docker", "then:docker|docker-compose:/opt/homebrew/bin/docker,/usr/local/bin/docker"},
 	"podman":     {"then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/usr/bin/podman", "then:podman:/opt/homebrew/bin/podman,/usr/local/bin/podman"},
+	"zig":        {"rel", "then:zig:/usr/bin/zig>rel", "rel", "then:zig:/usr/bin/zig>rel", "then:zig:/usr/bin/zig>rel", "then:zig:/usr/bin/zig>rel", "then:zig:/usr/bin/zig>rel", "then:zig:/opt/homebrew/bin/zig,/usr/local/bin/zig>rel"},
 }
 
 var releaseRepos = map[string]string{
@@ -68,6 +69,7 @@ var releaseRepos = map[string]string{
 	"zellij":    "zellij-org/zellij",
 	"fastfetch": "fastfetch-cli/fastfetch",
 	"mitos":     "mitos-editor/mitos",
+	"zig":       "ziglang.org/zig",
 }
 
 func row8(cell string) [8]string {
@@ -79,7 +81,7 @@ func row8(cell string) [8]string {
 }
 
 func TestResolvePackageNames(t *testing.T) {
-	if len(matrix) != 34 {
+	if len(matrix) != 35 {
 		t.Fatalf("matrix len = %d", len(matrix))
 	}
 	mgrs := pm.Managers()
@@ -146,7 +148,7 @@ func TestResolvePackageNames(t *testing.T) {
 
 func TestEveryCatalogIDHasPlan(t *testing.T) {
 	ids := catalog.IDs()
-	if len(ids) != 34 || len(matrix) != 34 {
+	if len(ids) != 35 || len(matrix) != 35 {
 		t.Fatalf("ids %d matrix %d", len(ids), len(matrix))
 	}
 	seen := map[catalog.ID]bool{}

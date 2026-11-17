@@ -15,7 +15,7 @@ import (
 
 func TestMarksFromPlans(t *testing.T) {
 	ids := catalog.IDs()
-	if len(ids) != 34 {
+	if len(ids) != 35 {
 		t.Fatalf("ids %d", len(ids))
 	}
 	brew, err := install.ResolveAll(ids, "brew")
@@ -34,9 +34,9 @@ func TestMarksFromPlans(t *testing.T) {
 		t.Fatalf("%v", got)
 	}
 	unmarked := map[string][]catalog.ID{
-		"apt":    {"zellij", "mitos"},
+		"apt":    {"zellij", "mitos", "zig"},
 		"dnf":    {"starship", "zellij", "mitos"},
-		"yum":    {"starship", "eza", "fastfetch", "zellij", "mitos"},
+		"yum":    {"starship", "eza", "fastfetch", "zellij", "mitos", "zig"},
 		"pacman": {"mitos"},
 		"zypper": {"mitos"},
 		"apk":    {"mitos"},
@@ -44,9 +44,9 @@ func TestMarksFromPlans(t *testing.T) {
 		"brew":   {"trash", "mitos"},
 	}
 	wantN := map[string]int{
-		"apt": 32, "dnf": 31, "yum": 29,
-		"pacman": 33, "zypper": 33, "apk": 33, "xbps": 33,
-		"brew": 32,
+		"apt": 32, "dnf": 32, "yum": 29,
+		"pacman": 34, "zypper": 34, "apk": 34, "xbps": 34,
+		"brew": 33,
 	}
 	for _, mgr := range []string{"apt", "dnf", "yum", "pacman", "zypper", "apk", "xbps", "brew"} {
 		plans, err := install.ResolveAll(ids, mgr)
@@ -76,7 +76,7 @@ func TestMarksFromPlans(t *testing.T) {
 		}
 	}
 	got = marksFromPlans(brew, "", func(string) bool { return true }, false)
-	if got["compiler"] || got["trash"] || got["mitos"] || len(got) != 31 {
+	if got["compiler"] || got["trash"] || got["mitos"] || len(got) != 32 {
 		t.Fatalf("brew no xcode %v", got)
 	}
 	dnf, err := install.ResolveAll(ids, "dnf")
@@ -84,7 +84,7 @@ func TestMarksFromPlans(t *testing.T) {
 		t.Fatal(err)
 	}
 	got = marksFromPlans(dnf, "", func(string) bool { return true }, false)
-	if !got["compiler"] || len(got) != 31 {
+	if !got["compiler"] || len(got) != 32 {
 		t.Fatalf("dnf ignores xcode %v", got)
 	}
 }

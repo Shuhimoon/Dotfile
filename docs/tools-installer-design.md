@@ -184,11 +184,12 @@ func IDs() []ID
 | 分類 ID | 標題 | 項目（順序固定） | Default |
 | --- | --- | --- | --- |
 | `basics` | 基礎 | `git` `curl` `wget` `unzip` `rsync` `vim` `less` `net-tools` `whois` `dnsutils` `traceroute` | 全部 true |
-| `shell` | Shell | `zsh` `starship` | 全部 false |
+| `shell` | Shell | `zsh` `starship` `fastfetch` | 全部 false |
 | `files` | 檔案搜尋 | `eza` `trash` `ripgrep` `fd` `bat` `jq` `fzf` | 全部 true |
-| `editors` | 編輯器 | `neovim` false，`zellij` true，`fastfetch` false，`mitos` true | 僅 `zellij`、`mitos` |
-| `languages` | 語言 | `go` `rust` `python` `node` | 全部 false |
+| `editors` | 編輯器 | `neovim` false，`zellij` true，`mitos` true | 僅 `zellij`、`mitos` |
+| `languages` | 語言 | `go` `rust` `python` `node` `zig` | 全部 false |
 | `build` | 編譯 | `make` `cmake` `compiler` `pkg-config` | 全部 false |
+| `containers` | 容器 | `docker` `podman` | 全部 false |
 
 `DefaultIDs()` 的字面值，測試直接比對這個 slice，不要從 `Default == true` 再算出一份「期望」來自己跟自己比。另外一個測試把 `All()` 裡 `Default == true` 的 ID 排序後與這份 slice 排序後比較，防止兩邊漂移。
 

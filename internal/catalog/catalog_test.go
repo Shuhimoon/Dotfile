@@ -79,8 +79,8 @@ func TestDefaultMarkerIndependentOfChecked(t *testing.T) {
 
 func TestCatalogIDsUnique(t *testing.T) {
 	ids := catalog.IDs()
-	if len(ids) != 34 {
-		t.Fatalf("len = %d, want 34", len(ids))
+	if len(ids) != 35 {
+		t.Fatalf("len = %d, want 35", len(ids))
 	}
 	seen := map[catalog.ID]bool{}
 	for _, id := range ids {
@@ -97,10 +97,10 @@ func TestCategoryOrder(t *testing.T) {
 		items     []string
 	}{
 		{"basics", "基礎", []string{"git", "curl", "wget", "unzip", "rsync", "vim", "less", "net-tools", "whois", "dnsutils", "traceroute"}},
-		{"shell", "Shell", []string{"zsh", "starship"}},
+		{"shell", "Shell", []string{"zsh", "starship", "fastfetch"}},
 		{"files", "檔案搜尋", []string{"eza", "trash", "ripgrep", "fd", "bat", "jq", "fzf"}},
-		{"editors", "編輯器", []string{"neovim", "zellij", "fastfetch", "mitos"}},
-		{"languages", "語言", []string{"go", "rust", "python", "node"}},
+		{"editors", "編輯器", []string{"neovim", "zellij", "mitos"}},
+		{"languages", "語言", []string{"go", "rust", "python", "node", "zig"}},
 		{"build", "編譯", []string{"make", "cmake", "compiler", "pkg-config"}},
 		{"containers", "容器", []string{"docker", "podman"}},
 	}
