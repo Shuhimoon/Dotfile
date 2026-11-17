@@ -153,35 +153,6 @@ func TestHomeNarrow(t *testing.T) {
 	}
 }
 
-func TestUnavailableFrame(t *testing.T) {
-	m := homeFixture()
-	m.phase = phaseUnavailable
-	view := render(m, false)
-	if !strings.Contains(view, "tools-uninstall") || !strings.Contains(view, unavailSentence) || !strings.Contains(view, "Tools-install") {
-		t.Fatal(view)
-	}
-	lines := frameLines(view)
-	if lines[len(lines)-1] != unavailableHelp {
-		t.Fatalf("footer %q", lines[len(lines)-1])
-	}
-	for _, bad := range []string{"apt-get", "dnf", "yum", "pacman", "brew uninstall"} {
-		if strings.Contains(view, bad) {
-			t.Fatal(bad)
-		}
-	}
-	styled := renderStyled(m, testRenderer())
-	if !strings.Contains(styled, "38;2;240;173;160") || !strings.Contains(styled, "1;38;2;247;198;186") || !strings.Contains(styled, "38;2;237;227;225") {
-		t.Fatal(styled)
-	}
-	narrow := m
-	narrow.width = 4
-	narrow.height = 10
-	nv := render(narrow, false)
-	if strings.Contains(nv, "\x1b") || !strings.Contains(nv, "Too…") || !strings.Contains(nv, "不…") {
-		t.Fatal(nv)
-	}
-}
-
 func TestPickIP(t *testing.T) {
 	addrs := []net.Addr{
 		&net.IPNet{IP: net.ParseIP("127.0.0.1"), Mask: net.CIDRMask(8, 32)},

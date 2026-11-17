@@ -6,11 +6,11 @@ import (
 
 	"github.com/shuhi/dotfiles/internal/catalog"
 	"github.com/shuhi/dotfiles/internal/install"
-	"github.com/shuhi/dotfiles/internal/linkbash"
 	"github.com/shuhi/dotfiles/internal/pm"
+	"github.com/shuhi/dotfiles/internal/shellrc"
 )
 
-func TestHooksFor(t *testing.T) {
+func TestBlocksFor(t *testing.T) {
 	var fed []install.ItemResult
 	for _, id := range catalog.DefaultIDs() {
 		res := install.ItemResult{ID: id, Method: pm.MethodPackage, Status: "ok"}
@@ -20,11 +20,11 @@ func TestHooksFor(t *testing.T) {
 		}
 		fed = append(fed, res)
 	}
-	if got := joinHooks(install.HooksFor(fed)); got != "local-bin,fzf" {
+	if got := joinHooks(install.BlocksFor(fed)); got != "local-bin,fzf" {
 		t.Fatalf("fedora %s", got)
 	}
 	only := []install.ItemResult{{ID: "fzf", Method: pm.MethodPackage, Status: "ok"}}
-	if got := joinHooks(install.HooksFor(only)); got != "fzf" {
+	if got := joinHooks(install.BlocksFor(only)); got != "fzf" {
 		t.Fatalf("fzf only %s", got)
 	}
 	// Order follows the fixed list, not the slice order.
@@ -34,7 +34,7 @@ func TestHooksFor(t *testing.T) {
 		{ID: "rust", Method: pm.MethodRustup, Status: "ok"},
 		{ID: "eza", Method: pm.MethodRelease, Status: "ok", NeedsLocalBin: true},
 	}
-	if got := joinHooks(install.HooksFor(mixed)); got != "local-bin,fzf,cargo-env,go-path" {
+	if got := joinHooks(install.BlocksFor(mixed)); got != "local-bin,fzf,rust,go" {
 		t.Fatalf("order %s", got)
 	}
 	failed := []install.ItemResult{
@@ -42,23 +42,40 @@ func TestHooksFor(t *testing.T) {
 		{ID: "rust", Method: pm.MethodRustup, Status: "pending-user"},
 		{ID: "go", Method: pm.MethodGoTarball, Status: "failed"},
 	}
-	if got := install.HooksFor(failed); len(got) != 0 {
+	if got := install.BlocksFor(failed); len(got) != 0 {
 		t.Fatalf("failed %v", got)
 	}
-	// Package rust/go do not add cargo-env or go-path.
+	// Package rust/go do not add the rust or go blocks.
 	pkg := []install.ItemResult{
 		{ID: "rust", Method: pm.MethodPackage, Status: "ok"},
 		{ID: "go", Method: pm.MethodPackage, Status: "ok"},
 	}
-	if got := install.HooksFor(pkg); len(got) != 0 {
+	if got := install.BlocksFor(pkg); len(got) != 0 {
 		t.Fatalf("pkg %v", got)
 	}
 }
 
-func joinHooks(ids []linkbash.HookID) string {
+func joinHooks(ids []shellrc.BlockID) string {
 	parts := make([]string, len(ids))
 	for i, id := range ids {
 		parts[i] = string(id)
 	}
 	return strings.Join(parts, ",")
+}
+
+func TestBlocksForStarshipAndSatisfied(t *testing.T) {
+	cases := []struct {
+		res  []install.ItemResult
+		want string
+	}{
+		{[]install.ItemResult{{ID: "starship", Method: pm.MethodRelease, Status: "ok", NeedsLocalBin: true}}, "local-bin,starship"},
+		{[]install.ItemResult{{ID: "starship", Method: pm.MethodPackage, Status: "satisfied"}}, "starship"},
+		{[]install.ItemResult{{ID: "starship", Method: pm.MethodPackage, Status: "failed"}}, ""},
+		{[]install.ItemResult{{ID: "rust", Method: pm.MethodRustup, Status: "satisfied"}}, ""},
+	}
+	for i, c := range cases {
+		if got := joinHooks(install.BlocksFor(c.res)); got != c.want {
+			t.Errorf("%d: %q want %q", i, got, c.want)
+		}
+	}
 }

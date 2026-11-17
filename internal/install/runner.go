@@ -7,14 +7,15 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/shuhi/dotfiles/internal/catalog"
 	"github.com/shuhi/dotfiles/internal/configcopy"
-	"github.com/shuhi/dotfiles/internal/linkbash"
 	"github.com/shuhi/dotfiles/internal/pm"
 	"github.com/shuhi/dotfiles/internal/release"
 	"github.com/shuhi/dotfiles/internal/safepath"
+	"github.com/shuhi/dotfiles/internal/shellrc"
 )
 
 type Runner struct {
@@ -23,6 +24,7 @@ type Runner struct {
 	Home      string
 	XDG       string
 	Bashrc    string
+	Zshrc     string
 	Repo      string
 	GoRoot    string
 	DryRun    bool
@@ -36,9 +38,10 @@ type Runner struct {
 	GoInstall func(ctx context.Context, q release.AssetQuery, euid int, dest string) error
 	Rustup    func(ctx context.Context, q release.AssetQuery, dir string) ([]string, error)
 	Deploy    func(src, dst string, policy configcopy.Policy, now time.Time, roots ...string) (configcopy.Result, error)
-	Apply     func(path string, hooks []linkbash.HookID) (linkbash.Report, error)
-	Log       func([]ItemResult) error
-	Now       func() time.Time
+	// Rc writes managed blocks to one rc file; it is called for ~/.bashrc and ~/.zshrc.
+	Rc  func(path, home string, sh shellrc.Shell, blocks []shellrc.BlockID) ([]shellrc.BlockID, error)
+	Log func([]ItemResult) error
+	Now func() time.Time
 	// Force re-runs a package argv and xcode-select --install.
 	// Preinstalled probes have no install argv and ignore it.
 	Force bool
@@ -471,23 +474,13 @@ func (r *Runner) doConfig(ctx context.Context, st Step, results []ItemResult) (I
 		}
 		return cur, false, false
 	}
-	if r.Deploy == nil {
+	if r.Deploy == nil || r.Repo == "" || r.Home == "" {
 		return cur, false, false
 	}
-	src, dst, policy, okPath := r.configPaths(st.ItemID)
-	if !okPath {
-		return cur, false, false
-	}
-	var roots []string
-	if r.Home != "" && safepath.RejectEscapingSymlink(dst, r.Home) == nil {
-		roots = append(roots, r.Home)
-	}
-	if r.XDG != "" && filepath.IsAbs(r.XDG) && safepath.RejectEscapingSymlink(dst, r.XDG) == nil {
-		roots = append(roots, r.XDG)
-	}
-	if len(roots) == 0 {
+	files, err := configcopy.FilesFor(string(st.ItemID), r.Repo, r.Home, r.XDG)
+	if err != nil {
 		cur.Status = "failed"
-		cur.ErrText = "拒絕目標 " + dst
+		cur.ErrText = err.Error()
 		cur.Note = ""
 		return cur, true, false
 	}
@@ -495,54 +488,72 @@ func (r *Runner) doConfig(ctx context.Context, st Step, results []ItemResult) (I
 	if r.Now != nil {
 		now = r.Now()
 	}
-	if _, err := r.Deploy(src, dst, policy, now, roots...); err != nil {
-		if errors.Is(err, context.Canceled) {
+	for _, f := range files {
+		if err := ctx.Err(); err != nil {
 			return cur, false, true
 		}
-		cur.Status = "failed"
-		cur.ErrText = err.Error()
-		cur.Note = ""
-		return cur, true, false
+		roots := r.configRoots(f.Dst)
+		if len(roots) == 0 {
+			cur.Status = "failed"
+			cur.ErrText = "拒絕目標 " + f.Dst
+			cur.Note = ""
+			return cur, true, false
+		}
+		if _, err := r.Deploy(f.Src, f.Dst, f.Policy, now, roots...); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return cur, false, true
+			}
+			cur.Status = "failed"
+			cur.ErrText = err.Error()
+			cur.Note = ""
+			return cur, true, false
+		}
 	}
 	return cur, false, false
 }
 
-func (r *Runner) configPaths(id catalog.ID) (src, dst string, policy configcopy.Policy, ok bool) {
-	xdg := r.XDG
-	if !filepath.IsAbs(xdg) {
-		xdg = filepath.Join(r.Home, ".config")
+// configRoots are the roots dst may be written under: home, and an absolute XDG_CONFIG_HOME.
+func (r *Runner) configRoots(dst string) []string {
+	var roots []string
+	if r.Home != "" && safepath.RejectEscapingSymlink(dst, r.Home) == nil {
+		roots = append(roots, r.Home)
 	}
-	switch id {
-	case "zellij":
-		return filepath.Join(r.Repo, "zellij", "config.kdl"), filepath.Join(xdg, "zellij", "config.kdl"), configcopy.PolicyBackupReplace, true
-	case "starship":
-		return filepath.Join(r.Repo, "shells", "starship", "starship.toml"), filepath.Join(xdg, "starship.toml"), configcopy.PolicyBackupReplace, true
-	case "zsh":
-		return filepath.Join(r.Repo, "shells", "zsh", "zshrc"), filepath.Join(r.Home, ".zshrc"), configcopy.PolicyCopyIfMissing, true
-	default:
-		return "", "", 0, false
+	if r.XDG != "" && filepath.IsAbs(r.XDG) && safepath.RejectEscapingSymlink(dst, r.XDG) == nil {
+		roots = append(roots, r.XDG)
 	}
+	return roots
 }
 
+// doLink writes the managed blocks to both ~/.bashrc and ~/.zshrc.
 func (r *Runner) doLink(ctx context.Context, results []ItemResult) (string, bool) {
 	if err := ctx.Err(); err != nil {
 		return "", true
 	}
-	hooks := HooksFor(results)
-	if len(hooks) == 0 || r.Apply == nil {
+	blocks := BlocksFor(results)
+	if len(blocks) == 0 || r.Rc == nil {
 		return "", false
 	}
-	path := r.Bashrc
-	if path == "" {
-		path = filepath.Join(r.Home, ".bashrc")
-	}
-	if _, err := r.Apply(path, hooks); err != nil {
-		if errors.Is(err, context.Canceled) {
-			return "", true
+	var errs []string
+	for _, sh := range shellrc.Shells {
+		path := r.rcPath(sh)
+		if _, err := r.Rc(path, r.Home, sh, blocks); err != nil {
+			if errors.Is(err, context.Canceled) {
+				return "", true
+			}
+			errs = append(errs, err.Error())
 		}
-		return err.Error(), false
 	}
-	return "", false
+	return strings.Join(errs, "; "), false
+}
+
+func (r *Runner) rcPath(sh shellrc.Shell) string {
+	switch {
+	case sh == shellrc.Bash && r.Bashrc != "":
+		return r.Bashrc
+	case sh == shellrc.Zsh && r.Zshrc != "":
+		return r.Zshrc
+	}
+	return shellrc.RcPath(r.Home, sh)
 }
 
 func findResult(results []ItemResult, id catalog.ID) (ItemResult, bool) {

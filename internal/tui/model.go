@@ -13,6 +13,7 @@ import (
 	"github.com/shuhi/dotfiles/internal/platform"
 	"github.com/shuhi/dotfiles/internal/pm"
 	"github.com/shuhi/dotfiles/internal/release"
+	"github.com/shuhi/dotfiles/internal/uninstall"
 )
 
 type phase int
@@ -25,7 +26,16 @@ const (
 	phaseReport
 	phaseFailed
 	phaseHome
-	phaseUnavailable
+	phaseUninstall
+	phasePythonWarn
+)
+
+// runMode tells the shared confirm/installing/report phases which flow they belong to.
+type runMode int
+
+const (
+	modeInstall runMode = iota
+	modeUninstall
 )
 
 type doneLine struct {
@@ -40,6 +50,8 @@ type Deps struct {
 	Force  bool
 	Uname  string
 	Runner install.Runner
+	// Exists probes files when planning a removal; nil uses os.Stat.
+	Exists func(string) bool
 	Log    func(manager string, results []install.ItemResult) error
 }
 
@@ -75,17 +87,22 @@ type model struct {
 	cancel    context.CancelFunc
 	keys      keyMap
 	deps      Deps
+	mode      runMode
+	ucursor   int
+	uselected map[catalog.ID]bool
+	usteps    []uninstall.Step
 }
 
 func New(info platform.Info) model {
 	m := model{
-		info:     info,
-		cats:     catalog.All(),
-		selected: map[catalog.ID]bool{},
-		width:    80,
-		height:   40,
-		phase:    phaseBrowsing,
-		keys:     newKeyMap(),
+		info:      info,
+		cats:      catalog.All(),
+		selected:  map[catalog.ID]bool{},
+		uselected: map[catalog.ID]bool{},
+		width:     80,
+		height:    40,
+		phase:     phaseBrowsing,
+		keys:      newKeyMap(),
 	}
 	for _, c := range m.cats {
 		for _, it := range c.Items {

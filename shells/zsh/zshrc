@@ -1,5 +1,8 @@
-# Deployed only when ~/.zshrc does not already exist.
-export PATH="$HOME/.local/bin:$PATH"
-if command -v starship >/dev/null 2>&1; then
-  eval "$(starship init zsh)"
-fi
+# dotfiles: ~/.zshrc template. Deployed only when ~/.zshrc does not exist yet.
+# PATH, starship, fzf, rust and go lines are appended by the tools installer as
+# "# >>> dotfiles:<tool> >>>" blocks, the same blocks it writes to ~/.bashrc.
+HISTFILE="$HOME/.zsh_history"
+HISTSIZE=10000
+SAVEHIST=10000
+setopt share_history hist_ignore_dups
+autoload -Uz compinit && compinit

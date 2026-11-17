@@ -100,7 +100,7 @@ func ValidateArgv(argv []string) error {
 		idx = 1
 	}
 	switch argv[idx] {
-	case "apt-get", "dnf", "yum", "pacman", "zypper", "apk", "xbps-install", "brew", "xcode-select":
+	case "apt-get", "dnf", "yum", "pacman", "zypper", "apk", "xbps-install", "xbps-remove", "brew", "xcode-select":
 	default:
 		return fmt.Errorf("不允許的命令 %s", argv[idx])
 	}

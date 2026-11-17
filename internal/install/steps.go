@@ -6,6 +6,7 @@ import (
 	"sort"
 
 	"github.com/shuhi/dotfiles/internal/catalog"
+	"github.com/shuhi/dotfiles/internal/configcopy"
 	"github.com/shuhi/dotfiles/internal/pm"
 )
 
@@ -74,7 +75,8 @@ func BuildSteps(plans []Plan, euid int, home string) ([]Step, error) {
 		}
 		steps = append(steps, st)
 	}
-	for _, id := range []catalog.ID{"zsh", "starship", "zellij"} {
+	for _, cid := range configcopy.ToolIDs {
+		id := catalog.ID(cid)
 		if selected[id] {
 			steps = append(steps, Step{
 				ItemID:  id,
@@ -88,7 +90,7 @@ func BuildSteps(plans []Plan, euid int, home string) ([]Step, error) {
 	hooks := plannedHooks(plans)
 	if len(hooks) > 0 {
 		steps = append(steps, Step{
-			Title: "link-bash",
+			Title: "shell-rc",
 			Kind:  KindLink,
 			Hooks: hooks,
 		})
@@ -195,10 +197,10 @@ func plannedHooks(plans []Plan) []string {
 		hooks = append(hooks, "fzf")
 	}
 	if cargo {
-		hooks = append(hooks, "cargo-env")
+		hooks = append(hooks, "rust")
 	}
 	if gopath {
-		hooks = append(hooks, "go-path")
+		hooks = append(hooks, "go")
 	}
 	return hooks
 }

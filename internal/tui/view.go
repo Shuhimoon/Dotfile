@@ -9,6 +9,7 @@ import (
 	"github.com/shuhi/dotfiles/internal/catalog"
 	"github.com/shuhi/dotfiles/internal/install"
 	"github.com/shuhi/dotfiles/internal/platform"
+	"github.com/shuhi/dotfiles/internal/uninstall"
 )
 
 const installedLabel = "(已安裝)"
@@ -55,6 +56,8 @@ type catalogRow struct {
 	Item     catalog.Item
 	Selected bool
 	Cursor   bool
+	// Cat is the category index, used for the header gradient.
+	Cat int
 }
 
 func (m model) View() string {
@@ -161,7 +164,7 @@ func frameSize(m model, styled bool) (headerN, statusN, bodyH, footerN int) {
 
 func catalogChrome(ph phase) bool {
 	switch ph {
-	case phaseDetecting, phaseHome, phaseUnavailable:
+	case phaseDetecting, phaseHome:
 		return false
 	default:
 		return true
@@ -169,21 +172,25 @@ func catalogChrome(ph phase) bool {
 }
 
 func showsStatus(ph phase) bool {
-	return ph == phaseBrowsing || ph == phaseFailed
+	return ph == phaseBrowsing || ph == phaseFailed || ph == phaseUninstall
 }
 
 func (m model) catalogRows() (rows []catalogRow, cursorAt int) {
+	if m.phase == phaseUninstall {
+		return m.uninstallRows()
+	}
 	cur := catalog.ID("")
 	if m.cursor >= 0 && m.cursor < len(m.flat) {
 		cur = m.flat[m.cursor]
 	}
-	for _, c := range m.cats {
-		rows = append(rows, catalogRow{Kind: rowHeader, Title: c.Title})
+	for ci, c := range m.cats {
+		rows = append(rows, catalogRow{Kind: rowHeader, Title: c.Title, Cat: ci})
 		for _, it := range c.Items {
 			row := catalogRow{
 				Kind:     rowItem,
 				Item:     it,
 				Selected: m.selected[it.ID],
+				Cat:      ci,
 			}
 			if it.ID == cur {
 				row.Cursor = true
@@ -280,7 +287,7 @@ func formatRow(m model, row catalogRow) string {
 	if inner < 0 {
 		inner = 0
 	}
-	installed := row.Kind == rowItem && m.installed[row.Item.ID]
+	installed := m.rowInstalled(row)
 	var line string
 	if row.Kind == rowHeader {
 		line = row.Title
@@ -360,7 +367,7 @@ func placeInstalled(left string, inner int) (visible, gap, mark string) {
 
 func itemLine(m model, row catalogRow) string {
 	left := itemLeft(m.width, row)
-	if !m.installed[row.Item.ID] {
+	if !m.rowInstalled(row) {
 		return left
 	}
 	inset := horizontalInset(m.width)
@@ -392,10 +399,10 @@ func styledBody(p palette, m model, bodyH int) []string {
 		out := make([]string, 0, end-start)
 		for _, row := range rows[start:end] {
 			if row.Kind == rowHeader {
-				out = append(out, paintCatalogHeader(p, row.Title, m.width))
+				out = append(out, paintCatalogHeader(p, row.Title, m.width, catColor(row.Cat, len(m.cats))))
 				continue
 			}
-			out = append(out, paintItem(p, row, m.width, showDesc, m.installed[row.Item.ID]))
+			out = append(out, paintItem(p, row, m.width, showDesc, m.rowInstalled(row)))
 		}
 		return out
 	}
@@ -409,8 +416,13 @@ func styledBody(p palette, m model, bodyH int) []string {
 
 func phaseBody(m model) []string {
 	switch m.phase {
+	case phasePythonWarn:
+		return []string{uninstall.PythonWarning, pythonConfirm}
 	case phaseConfirm:
 		var lines []string
+		if m.mode == modeUninstall {
+			lines = append(lines, "將移除下列項目，連同它的設定檔與 ~/.bashrc、~/.zshrc 設定區塊")
+		}
 		if m.dryRun {
 			lines = append(lines, "只顯示計畫，不會執行")
 		}
@@ -463,6 +475,13 @@ func clipLines(lines []string, bodyH int) []string {
 }
 
 func selectedLine(m model) string {
+	if m.phase == phaseUninstall {
+		id := ""
+		if ids := m.removableIDs(); m.ucursor >= 0 && m.ucursor < len(ids) {
+			id = string(ids[m.ucursor])
+		}
+		return fmt.Sprintf("已勾選移除 %d    游標 %s", len(m.uninstallSelected()), id)
+	}
 	return fmt.Sprintf("已勾選 %d    游標 %s", m.countSelected(), m.cursorID())
 }
 
@@ -535,4 +554,10 @@ func (m model) pendingSteps() []install.Step {
 		return nil
 	}
 	return m.steps[n:]
+}
+
+// rowInstalled is the purple "(已安裝)" style. The uninstall list only shows
+// installed tools, so it uses the plain row style there.
+func (m model) rowInstalled(row catalogRow) bool {
+	return row.Kind == rowItem && m.phase != phaseUninstall && m.installed[row.Item.ID]
 }

@@ -1,9 +1,10 @@
 package install
 
-import "github.com/shuhi/dotfiles/internal/linkbash"
+import "github.com/shuhi/dotfiles/internal/shellrc"
 
-// HooksFor picks bash hooks from results. Order is fixed and ignores results order.
-func HooksFor(results []ItemResult) []linkbash.HookID {
+// BlocksFor picks the shell rc blocks from results. Order is fixed and ignores
+// results order. The same blocks go to ~/.bashrc and ~/.zshrc.
+func BlocksFor(results []ItemResult) []shellrc.BlockID {
 	var local, star, fzf, cargo, gopath bool
 	for _, res := range results {
 		good := successStatus(res.Status)
@@ -23,21 +24,21 @@ func HooksFor(results []ItemResult) []linkbash.HookID {
 			gopath = true
 		}
 	}
-	var out []linkbash.HookID
+	var out []shellrc.BlockID
 	if local {
-		out = append(out, linkbash.HookLocalBin)
+		out = append(out, shellrc.BlockLocalBin)
 	}
 	if star {
-		out = append(out, linkbash.HookStarship)
+		out = append(out, shellrc.BlockStarship)
 	}
 	if fzf {
-		out = append(out, linkbash.HookFzf)
+		out = append(out, shellrc.BlockFzf)
 	}
 	if cargo {
-		out = append(out, linkbash.HookCargoEnv)
+		out = append(out, shellrc.BlockRust)
 	}
 	if gopath {
-		out = append(out, linkbash.HookGoPath)
+		out = append(out, shellrc.BlockGo)
 	}
 	return out
 }

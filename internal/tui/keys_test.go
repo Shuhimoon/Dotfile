@@ -92,7 +92,7 @@ func TestKeymapHelpVisible(t *testing.T) {
 	m.width = 80
 	m.height = 40
 	view := render(m, false)
-	browsing := "操作  ↑/k 上一項  ↓/j 下一項  space 勾選/取消  enter 安裝已勾選  a 切換本類  A 切換全部  d 只顯示計畫  g 頂端  G 底端  q 離開"
+	browsing := "操作  ↑/k 上一項  ↓/j 下一項  space 勾選/取消  enter 安裝已勾選  a 切換本類  A 切換全部  d 只顯示計畫  g 頂端  G 底端  esc/b 返回首頁  q 離開"
 	if !strings.Contains(view, browsing) {
 		t.Fatalf("browsing help missing\n%s", view)
 	}
@@ -199,23 +199,10 @@ func TestHomeKeys(t *testing.T) {
 		t.Fatal("uninstall command")
 	}
 	um := next.(model)
-	if um.phase != phaseUnavailable || um.homeIndex != 1 {
-		t.Fatal("unavailable")
+	if um.phase != phaseUninstall || um.homeIndex != 1 || um.mode != modeUninstall {
+		t.Fatal("uninstall")
 	}
-	uv := render(um, false)
-	if !strings.Contains(uv, "此動作不可用") || !strings.Contains(uv, "不移除發行版套件，也不刪除檔案。") {
-		t.Fatal(uv)
-	}
-	for _, bad := range []string{"apt-get", "dnf", "brew uninstall"} {
-		if strings.Contains(uv, bad) {
-			t.Fatal(bad)
-		}
-	}
-	back, cmd := um.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if cmd != nil || back.(model).phase != phaseHome || back.(model).homeIndex != 1 {
-		t.Fatal("enter back")
-	}
-	back, cmd = um.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	back, cmd := um.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	if cmd != nil || back.(model).phase != phaseHome || back.(model).homeIndex != 1 {
 		t.Fatal("esc back")
 	}
@@ -249,7 +236,7 @@ func TestCatalogEscReturnsHome(t *testing.T) {
 	if mm.phase != phaseHome || mm.cursor != 4 || mm.scroll != 0 || !sameSel(mm.selected, snap) {
 		t.Fatalf("phase %d cursor %d", mm.phase, mm.cursor)
 	}
-	const browsing = "操作  ↑/k 上一項  ↓/j 下一項  space 勾選/取消  enter 安裝已勾選  a 切換本類  A 切換全部  d 只顯示計畫  g 頂端  G 底端  q 離開"
+	const browsing = "操作  ↑/k 上一項  ↓/j 下一項  space 勾選/取消  enter 安裝已勾選  a 切換本類  A 切換全部  d 只顯示計畫  g 頂端  G 底端  esc/b 返回首頁  q 離開"
 	if browsingHelp(m.keys) != browsing {
 		t.Fatalf("help %q", browsingHelp(m.keys))
 	}

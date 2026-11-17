@@ -19,9 +19,7 @@ const (
 	itemDownload     = "tools-download"
 	itemUninstall    = "tools-uninstall"
 	hintDownload     = "進入目錄安裝"
-	hintUninstall    = "此動作不可用"
-	unavailLead      = "此動作不可用"
-	unavailSentence  = "不移除發行版套件，也不刪除檔案。"
+	hintUninstall    = "選擇工具移除"
 
 	titleStartHex = "#F0ADA0"
 
@@ -262,9 +260,6 @@ func clipHome(lines []hLine, stageH int) []hLine {
 }
 
 func buildStack(m model, big bool) []hLine {
-	if m.phase == phaseUnavailable {
-		return buildUnavailable(m, big)
-	}
 	return buildHome(m, big)
 }
 
@@ -313,47 +308,6 @@ func buildHome(m model, big bool) []hLine {
 		menuLine(itemUninstall, hintUninstall, m.homeIndex == 1, cardW, left),
 	)
 	return lines
-}
-
-func buildUnavailable(m model, big bool) []hLine {
-	w := m.width
-	if w < 5 {
-		text := ""
-		if w > 0 {
-			text = ansi.Truncate(unavailSentence, w, "…")
-		}
-		return append(buildTitle(w), hLine{kind: hNote, text: text})
-	}
-	b := w - 4
-	parts := []string{itemUninstall, unavailLead, unavailSentence}
-	natural := 0
-	for _, s := range parts {
-		if sw := ansi.StringWidth(s); sw > natural {
-			natural = sw
-		}
-	}
-	content := natural
-	if natural > b {
-		content = b
-	}
-	top, sep, bottom := cardRules(content)
-	card := []hLine{
-		{kind: hRule, text: top},
-		{kind: hHead, text: cardInner(fitWidth(itemUninstall, content))},
-		{kind: hRule, text: sep},
-		{kind: hCard, text: cardInner(fitWidth(unavailLead, content))},
-		{kind: hCard, text: cardInner(fitWidth(unavailSentence, content))},
-		{kind: hRule, text: bottom},
-	}
-	cardW := content + 4
-	left := 0
-	if cardW < w {
-		left = (w - cardW) / 2
-	}
-	for i := range card {
-		card[i].left = left
-	}
-	return append(append(titleLines(w, big), hLine{kind: hBlank}), card...)
 }
 
 // fieldRow lays out one card row: the label padded to cardLabelW, two spaces, then the value.

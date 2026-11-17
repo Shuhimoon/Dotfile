@@ -67,16 +67,10 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.homeKey(k, false)
 	case phaseHome:
 		return m.homeKey(k, true)
-	case phaseUnavailable:
-		switch k.String() {
-		case "enter", "esc":
-			m.phase = phaseHome
-			return m, nil
-		}
-		if key.Matches(k, m.keys.Quit) {
-			return m, tea.Quit
-		}
-		return m, nil
+	case phaseUninstall:
+		return m.uninstallKey(k)
+	case phasePythonWarn:
+		return m.pythonWarnKey(k)
 	case phaseFailed:
 		if k.String() == "q" {
 			return m, tea.Quit
@@ -89,7 +83,7 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if key.Matches(k, m.keys.Quit) {
 			return m, tea.Quit
 		}
-		if k.String() == "esc" {
+		if key.Matches(k, m.keys.Back) {
 			m.phase = phaseHome
 			return m, nil
 		}
@@ -97,9 +91,15 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case phaseConfirm:
 		switch k.String() {
 		case "y":
+			if m.mode == modeUninstall {
+				return m.startUninstall()
+			}
 			return m.startInstall()
 		case "n", "esc":
 			m.phase = phaseBrowsing
+			if m.mode == modeUninstall {
+				m.phase = phaseUninstall
+			}
 			m.dryRun = false
 			return m, nil
 		}
@@ -112,6 +112,10 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		m.phase = phaseBrowsing
+		if m.mode == modeUninstall {
+			m.phase = phaseUninstall
+			m.status = uninstallNote
+		}
 		m.dryRun = false
 		return m, nil
 	}
@@ -142,7 +146,7 @@ func (m model) activateHome() (tea.Model, tea.Cmd) {
 		m.phase = phaseBrowsing
 		m.status = ""
 	case 1:
-		m.phase = phaseUnavailable
+		return m.enterUninstall()
 	default:
 		m.homeIndex = 0
 	}
@@ -244,6 +248,7 @@ func (m *model) toggleIDs(ids []catalog.ID) {
 
 func (m model) enterConfirm(dry bool) (tea.Model, tea.Cmd) {
 	m.dryRun = dry
+	m.mode = modeInstall
 	plans, err := install.ResolveAll(m.selectedIDs(), m.info.Manager)
 	if err != nil {
 		m.status = err.Error()

@@ -46,7 +46,7 @@ func TestBuildStepsFedoraDefaults(t *testing.T) {
 		{"release zellij", "zellij", nil},
 		{"release mitos", "mitos", nil},
 		{"config zellij", "zellij", nil},
-		{"link-bash", "", nil},
+		{"shell-rc", "", nil},
 	}
 	if len(steps) != len(want) {
 		t.Fatalf("len %d", len(steps))

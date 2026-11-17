@@ -79,7 +79,7 @@ func TestStyledShortFrameClampsFooter(t *testing.T) {
 	if len(lines) != 1 {
 		t.Fatalf("h1 %d %q", len(lines), lines)
 	}
-	if strings.Contains(lines[0], "系統:") || !strings.Contains(lines[0], "…") {
+	if strings.Contains(ansi.Strip(lines[0]), "系統:") || !strings.Contains(lines[0], "…") {
 		t.Fatalf("h1 %q", lines[0])
 	}
 
@@ -89,7 +89,7 @@ func TestStyledShortFrameClampsFooter(t *testing.T) {
 	if len(lines) != 2 {
 		t.Fatalf("h2 %d", len(lines))
 	}
-	if strings.Contains(view, "系統:") || !strings.Contains(view, "離開") {
+	if strings.Contains(ansi.Strip(view), "系統:") || !strings.Contains(view, "離開") {
 		t.Fatal("height 2 frame")
 	}
 
@@ -99,7 +99,7 @@ func TestStyledShortFrameClampsFooter(t *testing.T) {
 	if len(lines) != 3 {
 		t.Fatalf("h3 %d", len(lines))
 	}
-	if !strings.Contains(view, "系統:") {
+	if !strings.Contains(ansi.Strip(view), "系統:") {
 		t.Fatal("height 3 missing header")
 	}
 	// 安裝已勾選 sits in the footer, so the status row is the line with 游標.
@@ -225,17 +225,17 @@ func TestFooterLayoutWidth(t *testing.T) {
 		return lines
 	}
 
-	one := checkFit(125, 1)
+	one := checkFit(141, 1)
 	if one[0] != full {
-		t.Fatalf("125 %q", one[0])
+		t.Fatalf("141 %q", one[0])
 	}
 	two := checkFit(80, 2)
 	if !strings.HasSuffix(two[0], "a 切換本類") {
 		t.Fatalf("80 first %q", two[0])
 	}
-	checkFit(63, 2)
-	checkFit(48, 3)
-	checkFit(45, 3)
+	checkFit(79, 2)
+	checkFit(63, 3)
+	checkFit(60, 3)
 
 	for _, width := range []int{44, 40} {
 		lines, truncated := layoutFooter(segs, width, footerMaxLines)

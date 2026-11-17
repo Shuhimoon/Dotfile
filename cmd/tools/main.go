@@ -16,10 +16,10 @@ import (
 	"github.com/shuhi/dotfiles/internal/configcopy"
 	"github.com/shuhi/dotfiles/internal/install"
 	"github.com/shuhi/dotfiles/internal/installlog"
-	"github.com/shuhi/dotfiles/internal/linkbash"
 	"github.com/shuhi/dotfiles/internal/platform"
 	"github.com/shuhi/dotfiles/internal/pm"
 	"github.com/shuhi/dotfiles/internal/release"
+	"github.com/shuhi/dotfiles/internal/shellrc"
 	"github.com/shuhi/dotfiles/internal/tui"
 )
 
@@ -98,6 +98,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 			Home:      home,
 			XDG:       os.Getenv("XDG_CONFIG_HOME"),
 			Bashrc:    filepath.Join(home, ".bashrc"),
+			Zshrc:     filepath.Join(home, ".zshrc"),
 			Repo:      repo,
 			GOOS:      runtime.GOOS,
 			GOARCH:    runtime.GOARCH,
@@ -107,7 +108,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 			GoInstall: client.InstallGo,
 			Rustup:    client.PrepareRustup,
 			Deploy:    configcopy.Deploy,
-			Apply:     linkbash.Apply,
+			Rc:        shellrc.EnsureFile,
 		},
 		Log: func(manager string, results []install.ItemResult) error {
 			return writeLog(home, manager, verbose, results)
@@ -264,7 +265,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		GoInstall: client.InstallGo,
 		Rustup:    client.PrepareRustup,
 		Deploy:    configcopy.Deploy,
-		Apply:     linkbash.Apply,
+		Rc:        shellrc.EnsureFile,
 		Log: func(results []install.ItemResult) error {
 			return writeLog(home, manager, verbose, results)
 		},

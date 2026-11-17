@@ -16,6 +16,7 @@ type keyMap struct {
 	Dry     key.Binding
 	Top     key.Binding
 	Bottom  key.Binding
+	Back    key.Binding
 	Quit    key.Binding
 }
 
@@ -30,16 +31,31 @@ func newKeyMap() keyMap {
 		Dry:     key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "只顯示計畫")),
 		Top:     key.NewBinding(key.WithKeys("g", "home"), key.WithHelp("g", "頂端")),
 		Bottom:  key.NewBinding(key.WithKeys("G", "end"), key.WithHelp("G", "底端")),
+		Back:    key.NewBinding(key.WithKeys("esc", "b"), key.WithHelp("esc/b", "返回首頁")),
 		Quit:    key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "離開")),
 	}
 }
 
 func (k keyMap) browsing() []key.Binding {
-	return []key.Binding{k.Up, k.Down, k.Toggle, k.Install, k.CatAll, k.All, k.Dry, k.Top, k.Bottom, k.Quit}
+	return []key.Binding{k.Up, k.Down, k.Toggle, k.Install, k.CatAll, k.All, k.Dry, k.Top, k.Bottom, k.Back, k.Quit}
+}
+
+func (k keyMap) uninstalling() []key.Binding {
+	remove := key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "移除已勾選"))
+	return []key.Binding{k.Up, k.Down, k.Toggle, remove, k.CatAll, k.All, k.Top, k.Bottom, k.Back, k.Quit}
+}
+
+func uninstallHelp(k keyMap) string {
+	parts := make([]string, 0, 10)
+	for _, b := range k.uninstalling() {
+		h := b.Help()
+		parts = append(parts, h.Key+" "+h.Desc)
+	}
+	return "操作  " + strings.Join(parts, "  ")
 }
 
 func browsingHelp(k keyMap) string {
-	parts := make([]string, 0, 10)
+	parts := make([]string, 0, 11)
 	for _, b := range k.browsing() {
 		h := b.Help()
 		parts = append(parts, h.Key+" "+h.Desc)
@@ -51,4 +67,5 @@ const (
 	confirmHelp    = "操作  y 開始  n/esc 返回"
 	installingHelp = "操作  ctrl+c 取消"
 	reportHelp     = "操作  任意鍵返回  q 離開"
+	pythonWarnHelp = "操作  y 確定移除  n/esc 返回"
 )

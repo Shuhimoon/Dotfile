@@ -25,8 +25,6 @@ type footerSpan struct {
 
 const homeHelp = "操作  ↑/k 上一項  ↓/j 下一項  enter 進入  q 離開"
 
-const unavailableHelp = "操作  enter 返回  esc 返回  q 離開"
-
 func footerHints(m model) []hint {
 	switch m.phase {
 	case phaseDetecting, phaseHome:
@@ -37,13 +35,15 @@ func footerHints(m model) []hint {
 			{Key: "enter", Desc: "進入"},
 			{Key: "q", Desc: "離開"},
 		}
-	case phaseUnavailable:
-		return []hint{
-			{Key: "操作"},
-			{Key: "enter", Desc: "返回"},
-			{Key: "esc", Desc: "返回"},
-			{Key: "q", Desc: "離開"},
+	case phaseUninstall:
+		hints := []hint{{Key: "操作"}}
+		for _, b := range m.keys.uninstalling() {
+			h := b.Help()
+			hints = append(hints, hint{Key: h.Key, Desc: h.Desc})
 		}
+		return hints
+	case phasePythonWarn:
+		return []hint{{Key: "操作"}, {Key: "y", Desc: "確定移除"}, {Key: "n/esc", Desc: "返回"}}
 	case phaseConfirm:
 		return []hint{{Key: "操作"}, {Key: "y", Desc: "開始"}, {Key: "n/esc", Desc: "返回"}}
 	case phaseInstalling:
@@ -193,8 +193,10 @@ func plainHelp(m model) string {
 	switch m.phase {
 	case phaseDetecting, phaseHome:
 		return homeHelp
-	case phaseUnavailable:
-		return unavailableHelp
+	case phaseUninstall:
+		return uninstallHelp(m.keys)
+	case phasePythonWarn:
+		return pythonWarnHelp
 	case phaseConfirm:
 		return confirmHelp
 	case phaseInstalling:

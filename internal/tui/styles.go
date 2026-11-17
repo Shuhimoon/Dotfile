@@ -26,24 +26,32 @@ type palette struct {
 }
 
 func earthStyles(r *lipgloss.Renderer) palette {
-	// header is only the force-reinstall bar.
+	// tools-download and tools-uninstall share the home page theme: the title
+	// gradient #F0ADA0 -> #9EE2F0 on a dark warm ink page. The cursor row is the
+	// home menu highlight (peach fill, ink text). header is only the
+	// force-reinstall bar.
 	return palette{
 		r:         r,
-		bark:      "#2B2D3A",
-		header:    "#3F445B",
-		installed: "#423F59",
-		title:     "#394934",
-		cursor:    "#333648",
-		footer:    "#393E53",
-		mode:      "#2B2D3A",
-		cream:     "#E1E3E4",
-		clay:      "#F89860",
-		sand:      "#E1E3E4",
-		gold:      "#EDC763",
-		key:       "#6DCAE8",
-		olive:     "#9ED06C",
-		muted:     "#7E8294",
+		bark:      "#1E1A1D",
+		header:    "#3A2C30",
+		installed: "#1D2E33",
+		title:     "#2B2226",
+		cursor:    selectColor,
+		footer:    "#2B2226",
+		mode:      "#1E1A1D",
+		cream:     textColor,
+		clay:      selectColor,
+		sand:      "#D9CFCD",
+		gold:      headColor,
+		key:       homeKeyColor,
+		olive:     headColor,
+		muted:     "#9C8F92",
 	}
+}
+
+// catColor shades category headers along the title gradient, top to bottom.
+func catColor(i, n int) lipgloss.Color {
+	return lipgloss.Color(lerpTitle(n, i))
 }
 
 func (p palette) ink(text string, fg, bg lipgloss.Color, bold bool) string {
@@ -82,7 +90,16 @@ func paintHeader(p palette, text string, width int, bold bool) string {
 }
 
 func paintTitle(p palette, text string, width int) string {
-	return paintBar(p, text, width, p.title, true)
+	visible, left := placeHeader(text, width)
+	var b strings.Builder
+	if left > 0 {
+		b.WriteString(p.gap(strings.Repeat(" ", left), p.title))
+	}
+	rs := []rune(visible)
+	for i, r := range rs {
+		b.WriteString(p.ink(string(r), lipgloss.Color(lerpTitle(len(rs), i)), p.title, true))
+	}
+	return p.padTo(b.String(), width, p.title)
 }
 
 func paintBar(p palette, text string, width int, bg lipgloss.Color, bold bool) string {
@@ -126,6 +143,7 @@ func paintItem(p palette, row catalogRow, width int, showDesc, installed bool) s
 	if row.Cursor {
 		bg = p.cursor
 	}
+	on := cursorInk(row.Cursor)
 	fg := p.sand
 	box := "[ ]"
 	if row.Selected {
@@ -143,26 +161,26 @@ func paintItem(p palette, row catalogRow, width int, showDesc, installed bool) s
 		b.WriteString(styled)
 	}
 	if row.Cursor {
-		add(p.ink(">", p.cream, bg, true))
+		add(p.ink(">", on(p.cream), bg, true))
 		add(p.gap(" ", bg))
 	} else {
 		add(p.gap("  ", bg))
 	}
 	if row.Item.Default {
-		add(p.ink("*", p.gold, bg, false))
+		add(p.ink("*", on(p.gold), bg, false))
 	} else {
 		add(p.gap(" ", bg))
 	}
 	add(p.gap(" ", bg))
-	add(p.ink(box, fg, bg, false))
+	add(p.ink(box, on(fg), bg, false))
 	add(p.gap(" ", bg))
-	add(p.ink(name, fg, bg, false))
+	add(p.ink(name, on(fg), bg, false))
 	if padN > 0 {
 		add(p.gap(strings.Repeat(" ", padN), bg))
 	}
 	if showDesc && row.Item.Description != "" {
-		add(p.ink("  ", p.muted, bg, false))
-		add(p.ink(row.Item.Description, p.muted, bg, false))
+		add(p.ink("  ", on(p.muted), bg, false))
+		add(p.ink(row.Item.Description, on(p.muted), bg, false))
 	}
 
 	colored := b.String()
@@ -177,6 +195,10 @@ func paintItem(p palette, row catalogRow, width int, showDesc, installed bool) s
 
 func paintInstalledItem(p palette, row catalogRow, width, inset, inner int) string {
 	bg := p.installed
+	if row.Cursor {
+		bg = p.cursor
+	}
+	on := cursorInk(row.Cursor)
 	fg := p.sand
 	box := "[ ]"
 	if row.Selected {
@@ -192,26 +214,26 @@ func paintInstalledItem(p palette, row catalogRow, width, inset, inner int) stri
 	var styled strings.Builder
 	add := func(st string) { styled.WriteString(st) }
 	if row.Cursor {
-		add(p.ink(">", p.cream, bg, true))
+		add(p.ink(">", on(p.cream), bg, true))
 		add(p.gap(" ", bg))
 	} else {
 		add(p.gap("  ", bg))
 	}
 	if row.Item.Default {
-		add(p.ink("*", p.gold, bg, false))
+		add(p.ink("*", on(p.gold), bg, false))
 	} else {
 		add(p.gap(" ", bg))
 	}
 	add(p.gap(" ", bg))
-	add(p.ink(box, fg, bg, false))
+	add(p.ink(box, on(fg), bg, false))
 	add(p.gap(" ", bg))
-	add(p.ink(name, fg, bg, false))
+	add(p.ink(name, on(fg), bg, false))
 	if padN > 0 {
 		add(p.gap(strings.Repeat(" ", padN), bg))
 	}
 	if width >= 100 && row.Item.Description != "" {
-		add(p.ink("  ", p.sand, bg, false))
-		add(p.ink(row.Item.Description, p.sand, bg, false))
+		add(p.ink("  ", on(p.sand), bg, false))
+		add(p.ink(row.Item.Description, on(p.sand), bg, false))
 	}
 
 	left := itemLeft(width, row)
@@ -219,10 +241,10 @@ func paintInstalledItem(p palette, row catalogRow, width, inset, inner int) stri
 	var colored string
 	if inner < 8 {
 		if visible != "" {
-			colored += p.ink(visible, fg, bg, false)
+			colored += p.ink(visible, on(fg), bg, false)
 		}
 		if mark != "" {
-			colored += p.ink(mark, fg, bg, false)
+			colored += p.ink(mark, on(p.key), bg, false)
 		}
 	} else {
 		body := styled.String()
@@ -237,13 +259,13 @@ func paintInstalledItem(p palette, row catalogRow, width, inset, inner int) stri
 			colored += p.gap(gap, bg)
 		}
 		if mark != "" {
-			colored += p.ink(mark, fg, bg, false)
+			colored += p.ink(mark, on(p.key), bg, false)
 		}
 	}
 	return strings.Repeat(" ", inset) + colored + strings.Repeat(" ", inset)
 }
 
-func paintCatalogHeader(p palette, title string, width int) string {
+func paintCatalogHeader(p palette, title string, width int, fg lipgloss.Color) string {
 	inset := horizontalInset(width)
 	inner := width - 2*inset
 	if inner < 0 {
@@ -257,7 +279,7 @@ func paintCatalogHeader(p palette, title string, width int) string {
 	}
 	var body string
 	if inner > 0 {
-		body = p.padTo(p.ink(text, p.olive, p.bark, true), inner, p.bark)
+		body = p.padTo(p.ink(text, fg, p.bark, true), inner, p.bark)
 	}
 	return strings.Repeat(" ", inset) + body + strings.Repeat(" ", inset)
 }
@@ -317,4 +339,14 @@ func paintFooter(p palette, m model, footerN int) []string {
 		out = append(out, paintFooterSpan(p, hints, sp, m.width))
 	}
 	return out
+}
+
+// cursorInk switches every foreground to the home ink on the peach cursor row.
+func cursorInk(cursor bool) func(lipgloss.Color) lipgloss.Color {
+	return func(c lipgloss.Color) lipgloss.Color {
+		if cursor {
+			return inkColor
+		}
+		return c
+	}
 }

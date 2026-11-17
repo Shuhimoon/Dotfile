@@ -12,9 +12,9 @@ import (
 
 	"github.com/shuhi/dotfiles/internal/catalog"
 	"github.com/shuhi/dotfiles/internal/install"
-	"github.com/shuhi/dotfiles/internal/linkbash"
 	"github.com/shuhi/dotfiles/internal/pm"
 	"github.com/shuhi/dotfiles/internal/release"
+	"github.com/shuhi/dotfiles/internal/shellrc"
 )
 
 type fakeExec struct {
@@ -198,9 +198,9 @@ func TestExit130StopsLaterSteps(t *testing.T) {
 			releaseCalled = true
 			return nil
 		},
-		Apply: func(string, []linkbash.HookID) (linkbash.Report, error) {
+		Rc: func(string, string, shellrc.Shell, []shellrc.BlockID) ([]shellrc.BlockID, error) {
 			applyCalled = true
-			return linkbash.Report{}, nil
+			return nil, nil
 		},
 		Log: func([]install.ItemResult) error {
 			logCalls++
