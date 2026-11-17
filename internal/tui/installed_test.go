@@ -297,10 +297,10 @@ func TestReinstallAsk(t *testing.T) {
 		t.Fatalf("styled lines %d", len(slines))
 	}
 	qline := lineContaining(styled, "less 已安裝。要強制重新下載嗎？")
-	if qline == "" || !strings.Contains(qline, sgrHeader) || !strings.Contains(qline, sgrCream) || strings.Contains(qline, sgrTitle) || ansi.StringWidth(qline) != ask.width {
+	if qline == "" || strings.Contains(qline, "48;2;") || !strings.Contains(qline, sgrCream) || ansi.StringWidth(qline) != ask.width {
 		t.Fatalf("box %s", qline)
 	}
-	if !strings.Contains(slines[len(slines)-1], sgrFooter) {
+	if !strings.Contains(ansi.Strip(slines[len(slines)-1]), "離開") {
 		t.Fatal("footer left the last line")
 	}
 

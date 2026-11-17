@@ -176,7 +176,7 @@ func TestBodyClipShowsRemainder(t *testing.T) {
 	if hintLine != slines[len(slines)-2] {
 		t.Fatal("hint is not the last body line")
 	}
-	if !strings.Contains(hintLine, sgrCream) || !strings.Contains(hintLine, sgrBark) {
+	if !strings.Contains(hintLine, sgrCream) || strings.Contains(hintLine, "48;2;") {
 		t.Fatalf("hint colors %q", hintLine)
 	}
 	last := slines[len(slines)-1]

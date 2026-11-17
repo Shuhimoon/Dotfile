@@ -26,10 +26,11 @@ type palette struct {
 }
 
 func earthStyles(r *lipgloss.Renderer) palette {
-	// tools-download and tools-uninstall share the home page theme: the title
-	// gradient #F0ADA0 -> #9EE2F0 on a dark warm ink page. The cursor row is the
-	// home menu highlight (peach fill, ink text). header is only the
-	// force-reinstall bar.
+	// tools-download and tools-uninstall share the home page theme: text colours
+	// from the title gradient #F0ADA0 -> #9EE2F0 and no background colour at all;
+	// the terminal background shows through. The cursor row is the ">" marker plus
+	// peach text. bark, header, installed, title, cursor, footer and mode are
+	// background tokens that ink/gap/padTo still accept but ignore.
 	return palette{
 		r:         r,
 		bark:      "#1E1A1D",
@@ -55,7 +56,8 @@ func catColor(i, n int) lipgloss.Color {
 }
 
 func (p palette) ink(text string, fg, bg lipgloss.Color, bold bool) string {
-	st := p.r.NewStyle().Inline(true).Foreground(fg).Background(bg)
+	// No background colour anywhere: bg is kept in the signature but ignored.
+	st := p.r.NewStyle().Inline(true).Foreground(fg)
 	if bold {
 		st = st.Bold(true)
 	}
@@ -63,7 +65,7 @@ func (p palette) ink(text string, fg, bg lipgloss.Color, bold bool) string {
 }
 
 func (p palette) gap(text string, bg lipgloss.Color) string {
-	return p.r.NewStyle().Inline(true).Background(bg).Render(text)
+	return text
 }
 
 func (p palette) padTo(s string, width int, bg lipgloss.Color) string {
@@ -81,8 +83,8 @@ func (p palette) blank(width int) string {
 	if width <= 0 {
 		return ""
 	}
-	// Empty string, so Width paints the spaces itself. A precolored row must not go through Width.
-	return p.r.NewStyle().Background(p.bark).Width(width).Render("")
+	// Plain spaces: no screen paints a background colour.
+	return strings.Repeat(" ", width)
 }
 
 func paintHeader(p palette, text string, width int, bold bool) string {
@@ -341,11 +343,11 @@ func paintFooter(p palette, m model, footerN int) []string {
 	return out
 }
 
-// cursorInk switches every foreground to the home ink on the peach cursor row.
+// cursorInk paints the whole cursor row in the peach select colour (no fill).
 func cursorInk(cursor bool) func(lipgloss.Color) lipgloss.Color {
 	return func(c lipgloss.Color) lipgloss.Color {
 		if cursor {
-			return inkColor
+			return selectColor
 		}
 		return c
 	}

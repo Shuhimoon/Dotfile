@@ -496,13 +496,13 @@ func paintMenuLine(p palette, ln hLine, width int) string {
 	var core strings.Builder
 	if ln.selected {
 		if ln.text != "" {
-			core.WriteString(p.ink(ln.text, inkColor, selectColor, true))
+			core.WriteString(homeFG(p, ln.text, selectColor, true))
 		}
 		if ln.mid != "" {
-			core.WriteString(p.gap(ln.mid, selectColor))
+			core.WriteString(ln.mid)
 		}
 		if ln.hint != "" {
-			core.WriteString(p.ink(ln.hint, inkColor, selectColor, false))
+			core.WriteString(homeFG(p, ln.hint, selectColor, false))
 		}
 	} else {
 		if ln.text != "" {

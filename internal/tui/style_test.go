@@ -13,21 +13,15 @@ import (
 )
 
 const (
-	sgrClay      = "38;2;240;173;160"
-	sgrSand      = "38;2;217;207;205"
-	sgrGold      = "38;2;247;198;186"
-	sgrOlive     = "38;2;240;173;160" // first category header: start of the title gradient
-	sgrCream     = "38;2;237;227;225"
-	sgrKey       = "38;2;158;226;240"
-	sgrMuted     = "38;2;156;143;146"
-	sgrBark      = "48;2;30;26;29"
-	sgrHeader    = "48;2;58;44;48"
-	sgrInstalled = "48;2;29;46;51"
-	sgrTitle     = "48;2;43;34;38"
-	sgrCursor    = "48;2;240;173;160"
-	sgrFooter    = "48;2;43;34;38"
-	sgrMode      = "48;2;30;26;29"
-	sgrInk       = "38;2;30;20;22"
+	sgrClay  = "38;2;240;173;160"
+	sgrSand  = "38;2;217;207;205"
+	sgrGold  = "38;2;247;198;186"
+	sgrOlive = "38;2;240;173;160" // first category header: start of the title gradient
+	sgrCream = "38;2;237;227;225"
+	sgrKey   = "38;2;158;226;240"
+	sgrMuted = "38;2;156;143;146"
+	// The cursor row has no fill: it is the bold peach ">" marker plus peach text.
+	sgrCursorMark = "\x1b[1;38;2;240;173;160m>"
 )
 
 func testRenderer() *lipgloss.Renderer {
@@ -71,7 +65,7 @@ func TestStyledCheckedAndUncheckedColors(t *testing.T) {
 	}
 }
 
-func TestStyledCursorOverlayDistinct(t *testing.T) {
+func TestStyledCursorRowIsPeachMarker(t *testing.T) {
 	m := New(fedoraInfo())
 	view := renderStyled(m, testRenderer())
 	git := lineWith(view, "[x]", "git")
@@ -79,15 +73,15 @@ func TestStyledCursorOverlayDistinct(t *testing.T) {
 	if git == "" || curl == "" {
 		t.Fatal("missing rows")
 	}
-	if !strings.Contains(git, sgrCursor) || !strings.Contains(git, sgrInk) || strings.Contains(git, sgrBark) {
+	if !strings.Contains(git, sgrCursorMark) || strings.Contains(git, sgrSand) || strings.Contains(git, "48;2;") {
 		t.Fatalf("git %s", git)
 	}
-	if strings.Contains(curl, sgrCursor) {
-		t.Fatalf("curl has cursor bg %s", curl)
+	if strings.Contains(curl, ">") || strings.Contains(curl, "48;2;") {
+		t.Fatalf("curl looks like the cursor row %s", curl)
 	}
 }
 
-func TestStyledUncheckedCursorKeepsSand(t *testing.T) {
+func TestStyledUncheckedCursorRowIsPeach(t *testing.T) {
 	m := New(fedoraInfo())
 	for i, id := range m.flat {
 		if id == "zsh" {
@@ -99,7 +93,7 @@ func TestStyledUncheckedCursorKeepsSand(t *testing.T) {
 	if zsh == "" {
 		t.Fatal("missing zsh")
 	}
-	if !strings.Contains(zsh, sgrCursor) || !strings.Contains(zsh, sgrInk) || strings.Contains(zsh, sgrSand) {
+	if !strings.Contains(zsh, sgrCursorMark) || !strings.Contains(zsh, sgrClay) || strings.Contains(zsh, sgrSand) || strings.Contains(zsh, "48;2;") {
 		t.Fatalf("zsh %s", zsh)
 	}
 }
@@ -108,7 +102,7 @@ func TestStyledStarIsNotCheckColor(t *testing.T) {
 	m := New(fedoraInfo())
 	for i, id := range m.flat {
 		if id == "zsh" {
-			m.cursor = i // keep the cursor (ink on peach) off the starred rows
+			m.cursor = i // keep the peach cursor row off the starred rows
 		}
 	}
 	view := renderStyled(m, testRenderer())
@@ -121,13 +115,13 @@ func TestStyledStarIsNotCheckColor(t *testing.T) {
 	}
 }
 
-func TestStyledTitleBarUsesRaisedDark(t *testing.T) {
+func TestStyledTitleBarGradientNoFill(t *testing.T) {
 	m := New(fedoraInfo())
 	view := renderStyled(m, testRenderer())
 	line := lineContaining(view, "系統:")
 	// The title bar text runs along the home gradient, starting at #F0ADA0.
-	want := "\x1b[1;38;2;240;173;160;" + sgrTitle + "m"
-	if line == "" || !strings.Contains(line, want) || strings.Contains(line, sgrBark) || strings.Contains(line, sgrHeader) || strings.Contains(line, sgrInstalled) {
+	want := "\x1b[1;38;2;240;173;160m"
+	if line == "" || !strings.Contains(line, want) || strings.Contains(line, "48;2;") || strings.Contains(line, "48;2;") || strings.Contains(line, "48;2;") {
 		t.Fatalf("header %s", line)
 	}
 	if ansi.StringWidth(line) != m.width {
@@ -135,11 +129,11 @@ func TestStyledTitleBarUsesRaisedDark(t *testing.T) {
 	}
 }
 
-func TestStyledCategoryHeaderOlive(t *testing.T) {
+func TestStyledCategoryHeaderGradient(t *testing.T) {
 	m := New(fedoraInfo())
 	view := renderStyled(m, testRenderer())
 	line := lineContaining(view, "基礎")
-	if line == "" || !strings.Contains(line, sgrOlive) || !strings.Contains(line, sgrBark) {
+	if line == "" || !strings.Contains(line, sgrOlive) || strings.Contains(line, "48;2;") {
 		t.Fatalf("header %s", line)
 	}
 	if ansi.StringWidth(line) != m.width {
@@ -158,7 +152,7 @@ func TestDescriptionUsesMutedNotCheckColor(t *testing.T) {
 	if !strings.Contains(line, sgrMuted) || !strings.Contains(line, sgrClay) {
 		t.Fatalf("wget %s", line)
 	}
-	sep := "\x1b[" + sgrMuted + ";" + sgrBark + "m  \x1b[0m"
+	sep := "\x1b[" + sgrMuted + "m  \x1b[0m"
 	if !strings.Contains(line, sep) || hasReverse(styledFragment(line, "Fedora")) {
 		t.Fatalf("uninstalled sep %s", line)
 	}
@@ -168,7 +162,7 @@ func TestStyledStatusAndConfirmBody(t *testing.T) {
 	m := New(fedoraInfo())
 	view := renderStyled(m, testRenderer())
 	status := lineContaining(view, "游標")
-	if status == "" || !strings.Contains(status, sgrMuted) || !strings.Contains(status, sgrBark) {
+	if status == "" || !strings.Contains(status, sgrMuted) || strings.Contains(status, "48;2;") {
 		t.Fatalf("status %s", status)
 	}
 
@@ -176,17 +170,17 @@ func TestStyledStatusAndConfirmBody(t *testing.T) {
 	m.steps = []install.Step{{Title: "計畫安裝 curl"}}
 	view = renderStyled(m, testRenderer())
 	step := lineContaining(view, "計畫安裝 curl")
-	if step == "" || !strings.Contains(step, sgrCream) || !strings.Contains(step, sgrBark) {
+	if step == "" || !strings.Contains(step, sgrCream) || strings.Contains(step, "48;2;") {
 		t.Fatalf("step %s", step)
 	}
 	filled := 0
 	for _, ln := range frameLines(view) {
-		if strings.TrimSpace(ansi.Strip(ln)) == "" && strings.Contains(ln, sgrBark) {
+		if strings.TrimSpace(ansi.Strip(ln)) == "" && !strings.Contains(ln, "\x1b") {
 			filled++
 		}
 	}
 	if filled == 0 {
-		t.Fatal("short body was not filled with bark")
+		t.Fatal("short body was not padded with plain blank lines")
 	}
 
 	m.phase = phaseReport
@@ -194,7 +188,7 @@ func TestStyledStatusAndConfirmBody(t *testing.T) {
 	m.results = []install.ItemResult{{ID: "git", Status: "ok", Note: "note"}}
 	view = renderStyled(m, testRenderer())
 	rep := lineContaining(view, "git  ok  note")
-	if rep == "" || !strings.Contains(rep, sgrCream) || !strings.Contains(rep, sgrBark) {
+	if rep == "" || !strings.Contains(rep, sgrCream) || strings.Contains(rep, "48;2;") {
 		t.Fatalf("report %s", rep)
 	}
 	if strings.Contains(rep, sgrClay) || strings.Contains(rep, sgrGold) {
@@ -213,25 +207,25 @@ func TestStyledStatusAndConfirmBody(t *testing.T) {
 	view = renderStyled(m, testRenderer())
 	for _, needle := range []string{"  套件甲  ok", "  套件乙  failed", "  套件丙  satisfied"} {
 		line := lineContaining(view, needle)
-		if line == "" || !strings.Contains(line, sgrCream) || !strings.Contains(line, sgrBark) {
+		if line == "" || !strings.Contains(line, sgrCream) || strings.Contains(line, "48;2;") {
 			t.Fatalf("%s %s", needle, line)
 		}
 		if strings.Contains(line, sgrClay) || strings.Contains(line, sgrGold) || strings.Contains(line, sgrOlive) {
 			t.Fatalf("%s recolored %s", needle, line)
 		}
-		if strings.Contains(line, "\x1b[7;") || strings.Contains(line, "\x1b[1;7;") || strings.Contains(line, sgrInstalled) || strings.Contains(line, sgrTitle) {
+		if strings.Contains(line, "\x1b[7;") || strings.Contains(line, "\x1b[1;7;") || strings.Contains(line, "48;2;") || strings.Contains(line, "48;2;") {
 			t.Fatalf("%s reversed %s", needle, line)
 		}
 	}
-	if strings.Contains(rep, "\x1b[7;") || strings.Contains(rep, "\x1b[1;7;") || strings.Contains(rep, sgrInstalled) || strings.Contains(rep, sgrTitle) {
+	if strings.Contains(rep, "\x1b[7;") || strings.Contains(rep, "\x1b[1;7;") || strings.Contains(rep, "48;2;") || strings.Contains(rep, "48;2;") {
 		t.Fatalf("report reversed %s", rep)
 	}
-	if strings.Contains(status, sgrInstalled) || strings.Contains(status, sgrTitle) || strings.Contains(step, sgrInstalled) || strings.Contains(step, sgrTitle) {
+	if strings.Contains(status, "48;2;") || strings.Contains(status, "48;2;") || strings.Contains(step, "48;2;") || strings.Contains(step, "48;2;") {
 		t.Fatal("status or confirm picked up the row or title background")
 	}
 }
 
-func TestInstalledRowPinsMarkerOnPurple(t *testing.T) {
+func TestInstalledRowPinsMarkerRight(t *testing.T) {
 	r := testRenderer()
 	m := New(fedoraInfo())
 	m.width = 80
@@ -252,12 +246,12 @@ func TestInstalledRowPinsMarkerOnPurple(t *testing.T) {
 	if !strings.HasSuffix(whois, "  ") || strings.Contains(whois[len(whois)-2:], "\x1b") {
 		t.Fatal("right inset")
 	}
-	if hasReverse(whois) || strings.Contains(whois, sgrCursor) || strings.Contains(whois, sgrBark) || strings.Contains(whois, sgrMuted) {
+	if hasReverse(whois) || strings.Contains(whois, "48;2;") || strings.Contains(whois, "48;2;") || strings.Contains(whois, sgrMuted) {
 		t.Fatalf("whois %s", whois)
 	}
-	star := "\x1b[" + sgrGold + ";" + sgrInstalled + "m*\x1b[0m"
-	box := "\x1b[" + sgrClay + ";" + sgrInstalled + "m[x]\x1b[0m"
-	mark := "\x1b[" + sgrKey + ";" + sgrInstalled + "m(已安裝)\x1b[0m"
+	star := "\x1b[" + sgrGold + "m*\x1b[0m"
+	box := "\x1b[" + sgrClay + "m[x]\x1b[0m"
+	mark := "\x1b[" + sgrKey + "m(已安裝)\x1b[0m"
 	if !strings.Contains(whois, star) || !strings.Contains(whois, box) || !strings.Contains(whois, mark) {
 		t.Fatalf("whois %s", whois)
 	}
@@ -265,12 +259,12 @@ func TestInstalledRowPinsMarkerOnPurple(t *testing.T) {
 	if !strings.Contains(starFrag, sgrGold) || strings.Contains(starFrag, sgrClay) || hasReverse(starFrag) {
 		t.Fatalf("star %q", starFrag)
 	}
-	if !strings.Contains(whois, "\x1b["+sgrInstalled+"m"+strings.Repeat(" ", 50)+"\x1b[0m") {
-		t.Fatal("missing purple gap")
+	if !strings.Contains(whois, strings.Repeat(" ", 50)+"\x1b[") {
+		t.Fatal("missing plain gap before the marker")
 	}
 
 	zshLine := lineWith(view, "[ ]", "zsh")
-	if zshLine == "" || hasReverse(zshLine) || strings.Contains(zshLine, "(已安裝)") || strings.Contains(zshLine, sgrInstalled) {
+	if zshLine == "" || hasReverse(zshLine) || strings.Contains(zshLine, "(已安裝)") || strings.Contains(zshLine, "48;2;") {
 		t.Fatalf("zsh %s", zshLine)
 	}
 	if ansi.StringWidth(zshLine) != 80 || strings.Contains(zshLine, sgrGold) || strings.Contains(zshLine, sgrClay) {
@@ -285,7 +279,7 @@ func TestInstalledRowPinsMarkerOnPurple(t *testing.T) {
 	if marked == "" || strings.Contains(marked, "*") || strings.Contains(marked, "[x]") || strings.Contains(marked, sgrGold) || strings.Contains(marked, sgrClay) {
 		t.Fatalf("independent %s", marked)
 	}
-	if hasReverse(marked) || !strings.Contains(marked, "\x1b["+sgrKey+";"+sgrInstalled+"m(已安裝)\x1b[0m") {
+	if hasReverse(marked) || !strings.Contains(marked, "\x1b["+sgrKey+"m(已安裝)\x1b[0m") {
 		t.Fatalf("sand marker %s", marked)
 	}
 
@@ -297,13 +291,13 @@ func TestInstalledRowPinsMarkerOnPurple(t *testing.T) {
 	if wget == "" || ansi.StringWidth(wget) != 100 || hasReverse(wget) {
 		t.Fatalf("wget %d %s", ansi.StringWidth(wget), wget)
 	}
-	desc := "\x1b[" + sgrSand + ";" + sgrInstalled + "mFedora 套件是 wget2-wget\x1b[0m"
-	gap := "\x1b[" + sgrInstalled + "m" + strings.Repeat(" ", 44) + "\x1b[0m"
-	if !strings.Contains(wget, desc) || !strings.Contains(wget, gap) || strings.Contains(wget, sgrMuted) || strings.Contains(wget, sgrBark) || strings.Contains(wget, sgrCursor) {
+	desc := "\x1b[" + sgrSand + "mFedora 套件是 wget2-wget\x1b[0m"
+	gap := strings.Repeat(" ", 44) + "\x1b["
+	if !strings.Contains(wget, desc) || !strings.Contains(wget, gap) || strings.Contains(wget, sgrMuted) || strings.Contains(wget, "48;2;") || strings.Contains(wget, "48;2;") {
 		t.Fatalf("desc %s", wget)
 	}
 	mark = styledFragment(wget, "(已安裝)")
-	if !strings.Contains(mark, sgrKey+";"+sgrInstalled) || hasReverse(mark) {
+	if !strings.Contains(mark, sgrKey) || hasReverse(mark) {
 		t.Fatalf("mark %q", mark)
 	}
 
@@ -315,14 +309,14 @@ func TestInstalledRowPinsMarkerOnPurple(t *testing.T) {
 	view = renderStyled(m, r)
 	wget = lineContaining(view, "Fedora 套件是 wget2-wget")
 	// The cursor row is the home menu highlight even on an installed row: peach fill, ink text.
-	cur := "\x1b[1;" + sgrInk + ";" + sgrCursor + "m>\x1b[0m"
-	inkMark := "\x1b[" + sgrInk + ";" + sgrCursor + "m(已安裝)\x1b[0m"
-	if !strings.Contains(wget, cur) || !strings.Contains(wget, inkMark) || strings.Contains(wget, sgrInstalled) || strings.Contains(wget, sgrMuted) || hasReverse(wget) {
+	cur := sgrCursorMark + "\x1b[0m"
+	inkMark := "\x1b[" + sgrClay + "m(已安裝)\x1b[0m"
+	if !strings.Contains(wget, cur) || !strings.Contains(wget, inkMark) || strings.Contains(wget, "48;2;") || strings.Contains(wget, sgrMuted) || hasReverse(wget) {
 		t.Fatalf("cursor wget %s", wget)
 	}
 
 	for _, ln := range frameLines(renderStyled(New(fedoraInfo()), r)) {
-		if ansi.StringWidth(ln) != 80 || strings.Contains(ln, sgrInstalled) {
+		if ansi.StringWidth(ln) != 80 || strings.Contains(ln, "48;2;") {
 			t.Fatalf("row width %d %s", ansi.StringWidth(ln), ln)
 		}
 	}
@@ -332,13 +326,13 @@ func TestInstalledRowPinsMarkerOnPurple(t *testing.T) {
 	narrow.installed = map[catalog.ID]bool{"git": true}
 	narrow.cursor = 1 // off git, so the installed style is visible
 	nline := lineWith(renderStyled(narrow, r), "[x]", "git")
-	if nline == "" || ansi.StringWidth(nline) != 26 || !strings.Contains(nline, "[x]") || !strings.Contains(nline, "git") || !strings.Contains(nline, sgrInstalled) || hasReverse(nline) || !strings.Contains(nline, "(已安裝)") {
+	if nline == "" || ansi.StringWidth(nline) != 26 || !strings.Contains(nline, "[x]") || !strings.Contains(nline, "git") || strings.Contains(nline, "48;2;") || hasReverse(nline) || !strings.Contains(nline, "(已安裝)") {
 		t.Fatalf("narrow %d %s", ansi.StringWidth(nline), nline)
 	}
 
 	narrow.width = 4
 	nline = lineWith(renderStyled(narrow, r), "(已", "")
-	if nline != "" && (!strings.Contains(ansi.Strip(nline), "(已…") || !strings.Contains(nline, sgrKey+";"+sgrInstalled) || hasReverse(nline)) {
+	if nline != "" && (!strings.Contains(ansi.Strip(nline), "(已…") || !strings.Contains(nline, sgrKey) || hasReverse(nline)) {
 		t.Fatalf("width 4 %s", nline)
 	}
 	four := lineContaining(renderStyled(narrow, r), "(已")
@@ -373,7 +367,7 @@ func TestNoColorIsPlainText(t *testing.T) {
 	}
 }
 
-func TestStyledFooterBackground(t *testing.T) {
+func TestStyledFooterNoBackground(t *testing.T) {
 	m := New(fedoraInfo())
 	m.width = 80
 	m.height = 40
@@ -383,8 +377,8 @@ func TestStyledFooterBackground(t *testing.T) {
 	}
 	foot := lines[len(lines)-2:]
 	for _, ln := range foot {
-		if !strings.Contains(ln, sgrFooter) {
-			t.Fatalf("footer line missing bg %s", ln)
+		if strings.Contains(ln, "48;2;") {
+			t.Fatalf("footer line has a background %s", ln)
 		}
 		if ansi.StringWidth(ln) != 80 {
 			t.Fatalf("footer width %d", ansi.StringWidth(ln))
@@ -397,7 +391,7 @@ func TestStyledFooterBackground(t *testing.T) {
 		t.Fatalf("q/leave %q", last)
 	}
 	between := last[q:leave]
-	if !strings.Contains(between, sgrFooter) {
+	if strings.Contains(between, "48;2;") {
 		t.Fatalf("gap %q", between)
 	}
 	if !strings.Contains(sgrBefore(last, q), sgrKey) {
@@ -407,7 +401,7 @@ func TestStyledFooterBackground(t *testing.T) {
 		t.Fatalf("leave color %q", sgrBefore(last, leave))
 	}
 	mode := sgrBefore(foot[0], strings.Index(foot[0], "操作"))
-	if !strings.Contains(mode, sgrMode) {
+	if strings.Contains(mode, "48;2;") {
 		t.Fatalf("mode %q", mode)
 	}
 }

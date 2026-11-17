@@ -108,7 +108,8 @@ func TestHomeStyled(t *testing.T) {
 	if !strings.Contains(dns, "1;38;2;158;226;240") {
 		t.Fatalf("dns %q", dns)
 	}
-	if !strings.Contains(sel, "48;2;240;173;160") || !strings.Contains(sel, "1;38;2;30;20;22") {
+	// Selected menu row: bold peach text, no fill.
+	if !strings.Contains(sel, "\x1b[1;38;2;240;173;160m> tools-download") || strings.Contains(sel, "48;2;") {
 		t.Fatalf("select %q", sel)
 	}
 }

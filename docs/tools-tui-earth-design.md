@@ -1,6 +1,6 @@
 # `tools` TUI 目錄視覺修訂：Andromeda 區塊與 Zellij 式底欄
 
-> **2026-11-17 更新：** 解除安裝、設定檔部署、bash/zsh 設定區塊與目錄色系已改，見 `docs/tools-uninstall-design.md`。本文件與它衝突的段落以新文件為準。
+> **2026-11-17 更新：** 解除安裝、設定檔部署、bash/zsh 設定區塊與色系（全部畫面不畫背景色）已改，見 `docs/tools-uninstall-design.md`。本文件與它衝突的段落以新文件為準。
 
 | 欄位 | 值 |
 | --- | --- |
