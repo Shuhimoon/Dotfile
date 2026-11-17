@@ -223,6 +223,7 @@ func (m *model) finishRun(results []install.ItemResult, code int) {
 	m.results = results
 	m.exitCode = code
 	m.phase = phaseReport
+	m.gitPending = m.mode == modeInstall && !m.canceled && gitReady(results)
 }
 
 // redetect re-probes what is installed, for the list and the home page.
@@ -253,6 +254,7 @@ func (m model) backToList() (tea.Model, tea.Cmd) {
 }
 
 func (m model) goHome() (tea.Model, tea.Cmd) {
+	m.gitPending = false
 	m.phase = phaseHome
 	m.mode = modeInstall
 	m.status = ""

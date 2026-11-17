@@ -397,6 +397,8 @@ func phaseBody(m model) []string {
 	switch m.phase {
 	case phaseSudo:
 		return sudoBody(m)
+	case phaseGitKey:
+		return gitKeyBody(m)
 	default:
 		return nil
 	}

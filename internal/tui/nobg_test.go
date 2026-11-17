@@ -32,13 +32,21 @@ func TestNoScreenEmitsBackground(t *testing.T) {
 		return m
 	}
 	screens := map[string]func(m model) model{
-		"detecting":  func(m model) model { m.phase = phaseDetecting; return m },
-		"home":       func(m model) model { m.phase = phaseHome; return m },
-		"home-sel2":  func(m model) model { m.phase = phaseHome; m.homeIndex = 1; return m },
-		"browse":     func(m model) model { m.phase = phaseBrowsing; return m },
-		"browse-sel": func(m model) model { m.phase = phaseBrowsing; m.selected["git"] = true; return m },
-		"failed":     func(m model) model { m.phase = phaseFailed; return m },
-		"sudo":       func(m model) model { m.phase = phaseSudo; m.pw = []byte("abc"); return m },
+		"detecting":   func(m model) model { m.phase = phaseDetecting; return m },
+		"home":        func(m model) model { m.phase = phaseHome; return m },
+		"home-sel2":   func(m model) model { m.phase = phaseHome; m.homeIndex = 1; return m },
+		"browse":      func(m model) model { m.phase = phaseBrowsing; return m },
+		"browse-sel":  func(m model) model { m.phase = phaseBrowsing; m.selected["git"] = true; return m },
+		"failed":      func(m model) model { m.phase = phaseFailed; return m },
+		"sudo":        func(m model) model { m.phase = phaseSudo; m.pw = []byte("abc"); return m },
+		"gitkey-add":  func(m model) model { m.phase = phaseGitKey; m.gitStage = gitAdd; m.gitBuf = []byte("abc"); return m },
+		"gitkey-pick": func(m model) model { m.phase = phaseGitKey; m.gitStage = gitPick; m.gitKeys = []string{"a"}; return m },
+		"gitkey-done": func(m model) model {
+			m.phase = phaseGitKey
+			m.gitStage = gitDone
+			m.gitDoneLines = []string{"ok"}
+			return m
+		},
 		"sudo-err": func(m model) model {
 			m.phase = phaseSudo
 			m.mode = modeUninstall

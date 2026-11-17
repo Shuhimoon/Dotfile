@@ -65,6 +65,8 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.uninstallKey(k)
 	case phaseSudo:
 		return m.sudoKey(k)
+	case phaseGitKey:
+		return m.gitKeyKey(k)
 	case phaseFailed:
 		if k.String() == "q" {
 			return m, tea.Quit
@@ -91,6 +93,9 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// q included, returns to the home page.
 		if m.dryRun {
 			return m.backToList()
+		}
+		if m.gitPending {
+			return m.enterGitKey()
 		}
 		return m.goHome()
 	}

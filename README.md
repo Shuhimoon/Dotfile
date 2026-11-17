@@ -14,6 +14,7 @@ go test ./...
 - 「容器」分類有 docker 與 podman。docker 依系統用不同套件（Fedora `moby-engine docker-compose`、Debian／Ubuntu `docker.io`、Arch／openSUSE／Void `docker docker-compose`、Alpine `docker docker-cli-compose`、mac `docker docker-compose` 只有 CLI，需要 Docker Desktop 或 colima）。Linux 裝完會加入 docker 群組，有 systemd 時啟用並啟動服務（沒開 systemd 的 WSL 會跳過並提示）。移除只移套件，不刪映像檔和 volume。詳見 `docs/tools-containers.md`。
 - 「語言」分類有 zig：Fedora／Arch／openSUSE／Alpine／Void／mac 用套件，Debian／Ubuntu 用 ziglang.org 官方 tarball（核對 sha256 與 minisign 簽章），裝在 `~/.local/share/zig`，`~/.local/bin/zig` 是 symlink。詳見 `docs/tools-zig.md`。fastfetch 在 Shell 分類。
 - `d` 只顯示計畫（白色清單，不執行），安裝和移除畫面都有，按任意鍵回到原本的清單，勾選保留。`a` 切換游標所在分類、`A` 切換全部：已安裝的工具不會被一起勾，但如果範圍內全都已安裝，就切換它們（會重新下載），狀態列會提示。
+- 安裝跑完、git 已就緒時，會接著設定 GitHub SSH 鑰匙：從 `~/.ssh/keys/` 選一把，或貼上新的私鑰並取名（存成 600），再把 `Host github.com` 的受管理區塊寫進 `~/.ssh/config`（第一次會先備份），`esc` 略過。詳見 `docs/tools-git-ssh.md`。
 - 安裝與移除都留在 TUI 裡：`enter` 直接開始（沒有 y 確認），進度頁顯示步驟狀態與即時輸出，`ctrl+c` 取消，結束後任意鍵回首頁。需要 sudo 時在 TUI 裡輸入密碼（遮罩，只交給 sudo 驗證）。
 
 ## 下載執行檔
@@ -38,4 +39,4 @@ GITHUB_TOKEN="$(gh auth token)" goreleaser release --clean
 
 版本、commit、建置時間用 ldflags 寫進 `main.version`／`main.commit`／`main.date`，`tools --version` 會顯示。
 
-設計文件在 `docs/`，最新的是 `docs/tools-zig.md`、`docs/tools-containers.md`、`docs/tools-progress-design.md` 與 `docs/tools-uninstall-design.md`。
+設計文件在 `docs/`，最新的是 `docs/tools-git-ssh.md`、`docs/tools-zig.md`、`docs/tools-containers.md`、`docs/tools-progress-design.md` 與 `docs/tools-uninstall-design.md`。

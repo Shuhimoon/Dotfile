@@ -397,3 +397,21 @@ func TestRunRemovesZigTarball(t *testing.T) {
 		}
 	}
 }
+
+func TestRunRemovesGitHubSSHBlock(t *testing.T) {
+	home := t.TempDir()
+	cfg := filepath.Join(home, ".ssh", "config")
+	put(t, cfg, "# >>> dotfiles:github >>>\nHost github.com\n  HostName github.com\n  User git\n  IdentityFile ~/.ssh/keys/gh\n# <<< dotfiles:github <<<\n\nHost box\n  User me\n")
+	put(t, filepath.Join(home, ".ssh", "keys", "gh"), "key")
+	results, code := (&uninstall.Runner{Home: home}).Run(context.Background(), []uninstall.Step{{ItemID: "git", Title: "ssh-config git", Kind: uninstall.KindSSH}})
+	if code != 0 || !strings.Contains(results[0].Note, "github") {
+		t.Fatalf("%d %+v", code, results)
+	}
+	b, _ := os.ReadFile(cfg)
+	if string(b) != "Host box\n  User me\n" {
+		t.Fatalf("%q", b)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".ssh", "keys", "gh")); err != nil {
+		t.Fatal("key file removed")
+	}
+}

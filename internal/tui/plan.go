@@ -78,6 +78,8 @@ func uninstallDetail(st uninstall.Step) string {
 			b = append(b, shellrc.Begin(id))
 		}
 		parts = append(parts, "從 ~/.bashrc、~/.zshrc 刪除 "+strings.Join(b, "、")+" 區塊")
+	case uninstall.KindSSH:
+		parts = append(parts, "從 ~/.ssh/config 刪除 # >>> dotfiles:github >>> 區塊（鑰匙檔保留）")
 	case uninstall.KindConfig:
 		parts = append(parts, "移除部署的 "+string(st.ItemID)+" 設定檔（改過的先備份或保留）")
 	}

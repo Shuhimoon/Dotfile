@@ -15,6 +15,7 @@ import (
 	"github.com/shuhi/dotfiles/internal/pm"
 	"github.com/shuhi/dotfiles/internal/safepath"
 	"github.com/shuhi/dotfiles/internal/shellrc"
+	"github.com/shuhi/dotfiles/internal/sshkey"
 )
 
 // StatusRemoved is the per-item status of a finished removal.
@@ -115,6 +116,8 @@ func (r *Runner) step(ctx context.Context, st Step) (string, error) {
 		return r.removeBlocks(st.Blocks)
 	case KindConfig:
 		return r.removeConfig(st.ItemID)
+	case KindSSH:
+		return r.removeSSHBlock()
 	default:
 		return "", fmt.Errorf("未知的步驟 %s", st.Kind)
 	}
@@ -314,4 +317,20 @@ func (r *Runner) short(p string) string {
 		return "~/" + filepath.ToSlash(rel)
 	}
 	return p
+}
+
+// removeSSHBlock drops the managed github block from ~/.ssh/config. The key
+// files under ~/.ssh (or ~/.ssh/keys) stay.
+func (r *Runner) removeSSHBlock() (string, error) {
+	if r.Home == "" {
+		return "", fmt.Errorf("沒有 home")
+	}
+	removed, err := sshkey.RemoveBlock(filepath.Join(r.Home, ".ssh", "config"))
+	if err != nil {
+		return "", err
+	}
+	if removed {
+		return "已從 ~/.ssh/config 移除 github 區塊（鑰匙檔保留）", nil
+	}
+	return "", nil
 }

@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/shuhi/dotfiles/internal/catalog"
@@ -30,6 +31,8 @@ const (
 	phaseUninstall
 	// phaseSudo asks for the sudo password (masked) inside the TUI.
 	phaseSudo
+	// phaseGitKey picks or stores the GitHub SSH key after git is installed.
+	phaseGitKey
 )
 
 // runMode tells the shared sudo/progress/report phases which flow they belong to.
@@ -54,6 +57,10 @@ type Deps struct {
 	Sudo sudoer
 	// Detect re-probes installed tools after a run; nil uses detectInstalled.
 	Detect func(manager string) map[catalog.ID]bool
+	// GOOS picks the SSH key layout; empty uses runtime.GOOS.
+	GOOS string
+	// Now stamps config backups; nil uses time.Now.
+	Now func() time.Time
 }
 
 type model struct {
@@ -105,6 +112,17 @@ type model struct {
 	sudoNote string
 	sudoBusy bool
 	sudoGen  int
+
+	// GitHub SSH key page; gitBuf holds the pasted key and is zeroed on leave.
+	gitPending   bool
+	gitStage     gitStage
+	gitKeys      []string
+	gitCursor    int
+	gitFocus     int
+	gitBuf       []byte
+	gitName      []rune
+	gitNote      string
+	gitDoneLines []string
 }
 
 func New(info platform.Info) model {

@@ -44,11 +44,16 @@ func footerHints(m model) []hint {
 		return hints
 	case phaseSudo:
 		return []hint{{Key: "操作"}, {Key: "enter", Desc: "確認"}, {Key: "esc", Desc: "返回"}}
+	case phaseGitKey:
+		return gitKeyHints(m)
 	case phaseInstalling:
 		return []hint{{Key: "操作"}, {Key: "ctrl+c", Desc: "取消"}}
 	case phaseReport:
 		if m.dryRun {
 			return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: dryBackDesc(m)}}
+		}
+		if m.gitPending {
+			return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: "設定 GitHub SSH 鑰匙"}}
 		}
 		return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: "回主頁"}}
 	default:
@@ -198,11 +203,16 @@ func plainHelp(m model) string {
 		return uninstallHelp(m.keys)
 	case phaseSudo:
 		return sudoHelp
+	case phaseGitKey:
+		return gitKeyHelp(m)
 	case phaseInstalling:
 		return installingHelp
 	case phaseReport:
 		if m.dryRun {
 			return "操作  任意鍵 " + dryBackDesc(m)
+		}
+		if m.gitPending {
+			return "操作  任意鍵 設定 GitHub SSH 鑰匙"
 		}
 		return reportHelp
 	default:

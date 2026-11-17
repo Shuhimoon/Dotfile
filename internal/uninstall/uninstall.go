@@ -25,6 +25,9 @@ const (
 	KindRustup  Kind = "rustup"
 	KindShell   Kind = "shell-rc"
 	KindConfig  Kind = "config"
+	// KindSSH drops the managed "dotfiles:github" block from ~/.ssh/config
+	// when git is removed. Key files are kept.
+	KindSSH Kind = "ssh-config"
 )
 
 // LockedCategory is the catalog category that can never be removed.
@@ -153,6 +156,9 @@ func BuildSteps(ids []catalog.ID, manager string, euid int, pr Probe) ([]Step, e
 		}
 		if configcopy.HasConfig(string(id)) {
 			steps = append(steps, Step{ItemID: id, Title: "config " + string(id), Kind: KindConfig})
+		}
+		if id == "git" {
+			steps = append(steps, Step{ItemID: id, Title: "ssh-config git", Kind: KindSSH})
 		}
 	}
 	return steps, nil
