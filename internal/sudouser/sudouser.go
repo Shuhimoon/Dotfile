@@ -157,3 +157,33 @@ func (f Fixer) Fix(roots []string) (int, error) {
 	}
 	return n, firstErr
 }
+
+// TopLevel returns home's direct children that root owns: something run as
+// root during the install (a package scriptlet, an editor) dropped them in
+// the user's home, so they are given back too. Other entries are not walked.
+func (f Fixer) TopLevel(home string) []string {
+	if f.Owner == nil {
+		return nil
+	}
+	ents, err := os.ReadDir(home)
+	if err != nil {
+		return nil
+	}
+	var out []string
+	for _, e := range ents {
+		info, err := e.Info()
+		if err != nil {
+			continue
+		}
+		if uid, ok := f.Owner(info); ok && uid == 0 {
+			out = append(out, filepath.Join(home, e.Name()))
+		}
+	}
+	return out
+}
+
+// RootHomeEnv names the variable that carries root's own home during a
+// `sudo ./tools` run; system commands (package managers…) get it back as
+// HOME so their scriptlets write to /root as with a plain sudo, not into
+// the user's home.
+const RootHomeEnv = "DOTFILES_SUDO_ROOT_HOME"

@@ -384,6 +384,15 @@ func TestUnpackFastfetchTree(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".local", "share", "fastfetch", top, "usr", "bin", "flashfetch")); err != nil {
 		t.Fatal("flashfetch binary was dropped from the tree")
 	}
+	// Reinstall over its own symlink (a second `tools apply`) succeeds.
+	if err := release.InstallLayout(archive, home, spec); err != nil {
+		t.Fatalf("reinstall: %v", err)
+	}
+	// A direct layout still refuses a symlink at ~/.local/bin/<name>.
+	direct := tarGZ(t, []entry{{name: "fastfetch", body: "x", mode: 0o755}})
+	if err := release.InstallLayout(direct, home, release.Spec{BinaryName: "fastfetch", Layout: release.LayoutBinDirect}); err == nil {
+		t.Fatal("direct layout wrote through a symlink")
+	}
 }
 
 func TestUnpackFastfetchTreeMissingShare(t *testing.T) {

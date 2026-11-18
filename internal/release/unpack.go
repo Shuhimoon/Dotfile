@@ -156,8 +156,13 @@ func InstallLayout(archivePath, home string, spec Spec) error {
 		return fmt.Errorf("home 必須是絕對路徑")
 	}
 	link := filepath.Join(home, ".local", "bin", spec.BinaryName)
-	if err := safepath.RejectEscapingSymlink(link, home); err != nil {
+	if err := safepath.RejectEscapingSymlink(filepath.Dir(link), home); err != nil {
 		return err
+	}
+	// A tree layout owns its ~/.local/bin symlink (PlaceSymlink replaces it on
+	// a reinstall); the other layouts write a file there and refuse a symlink.
+	if info, err := os.Lstat(link); err == nil && info.Mode()&os.ModeSymlink != 0 && spec.Layout != LayoutTree {
+		return fmt.Errorf("拒絕 symlink：%s", link)
 	}
 	tmp, err := os.MkdirTemp("", "dotfiles-tools-")
 	if err != nil {

@@ -164,3 +164,22 @@ func TestFixerChownsOnlyRootOwned(t *testing.T) {
 		t.Fatalf("n=%d changed=%d", n, len(changed))
 	}
 }
+
+func TestTopLevelRootOwned(t *testing.T) {
+	home := t.TempDir()
+	for _, n := range []string{".viminfo", "mine"} {
+		if err := os.WriteFile(filepath.Join(home, n), nil, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	f := sudouser.Fixer{Owner: func(info fs.FileInfo) (int, bool) {
+		if info.Name() == ".viminfo" {
+			return 0, true
+		}
+		return 1000, true
+	}}
+	got := f.TopLevel(home)
+	if len(got) != 1 || filepath.Base(got[0]) != ".viminfo" {
+		t.Fatalf("top level %v", got)
+	}
+}

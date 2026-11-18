@@ -92,6 +92,7 @@ func (e streamExec) Run(ctx context.Context, argv []string) (string, int, error)
 	argv = sudoArgv(argv, e.mode)
 	argv = scoopArgv(argv, exec.LookPath, statExists)
 	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Env = install.CommandEnv(argv)
 	// SIGTERM lets sudo relay the signal and package managers clean up.
 	// Windows has no SIGTERM: kill the process there.
 	cmd.Cancel = func() error {
