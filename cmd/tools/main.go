@@ -28,6 +28,7 @@ const usage = `用法:
   tools [--verbose] [--force]
   tools --version
   tools apply [--only id,id] [--pm apt|dnf|yum|pacman|zypper|apk|xbps|brew] [--dry-run] [--bashrc PATH] [--verbose] [--force]
+  tools apply --config-only [--only zsh,starship,zellij] [--dry-run] [--verbose]
 `
 
 func main() {
@@ -143,6 +144,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 	pmFlag := ""
 	dry := false
 	bashrc := ""
+	configOnly := false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -155,6 +157,8 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			force = true
 		case a == "--dry-run":
 			dry = true
+		case a == "--config-only":
+			configOnly = true
 		case a == "--only":
 			if i+1 >= len(args) {
 				fmt.Fprintln(stderr, "缺少 --only")
@@ -188,6 +192,9 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			fmt.Fprintf(stderr, "未知參數 %s\n%s", a, usage)
 			return 2
 		}
+	}
+	if configOnly {
+		return runConfigOnly(only, onlySet, dry, verbose, stdout, stderr)
 	}
 	var ids []catalog.ID
 	if !onlySet {
@@ -300,6 +307,82 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 	}
 	if code == 2 {
 		fmt.Fprintln(stderr, "更新失敗")
+	}
+	return code
+}
+
+// runConfigOnly deploys only the config files (and the zsh plugins when zsh is
+// selected): no package manager, no update/package/release steps, no sudo.
+// Without --only it covers every tool in configcopy.ToolIDs.
+func runConfigOnly(only []string, onlySet, dry, verbose bool, stdout, stderr *os.File) int {
+	var ids []catalog.ID
+	if !onlySet {
+		for _, id := range configcopy.ToolIDs {
+			ids = append(ids, catalog.ID(id))
+		}
+	} else {
+		if len(only) == 0 {
+			fmt.Fprintln(stderr, "尚未勾選任何項目")
+			return 2
+		}
+		for _, id := range only {
+			if !configcopy.HasConfig(id) {
+				fmt.Fprintf(stderr, "沒有設定檔的 ID %s（可用：%s）\n", id, strings.Join(configcopy.ToolIDs, ","))
+				return 2
+			}
+			ids = append(ids, catalog.ID(id))
+		}
+	}
+	steps, err := install.BuildConfigSteps(ids)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if dry {
+		for _, st := range steps {
+			fmt.Fprintln(stdout, st.Title)
+		}
+		return 0
+	}
+	// sudoSetup never runs sudo; under "sudo tools" it points HOME back at the
+	// invoking user and chowns what was written, as the other paths do.
+	fixOwner, _, err := sudoSetup(stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	repo, repoErr := configRepo(home)
+	fixOwner()
+	seed := make([]install.ItemResult, 0, len(ids))
+	for _, st := range steps {
+		if st.Kind == install.KindConfig {
+			seed = append(seed, install.ItemResult{ID: st.ItemID, Status: "ok", Note: "只部署設定"})
+		}
+	}
+	r := &install.Runner{
+		Exec:    install.OSExecutor{},
+		EUID:    os.Geteuid(),
+		Home:    home,
+		XDG:     os.Getenv("XDG_CONFIG_HOME"),
+		Repo:    repo,
+		RepoErr: errText(repoErr),
+		Deploy:  configcopy.Deploy,
+		Seed:    seed,
+		Log: func(results []install.ItemResult) error {
+			return writeLog(home, "", verbose, results)
+		},
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	results, code := r.RunSteps(ctx, steps)
+	fixOwner()
+	for _, res := range results {
+		fmt.Fprintln(stdout, install.FormatResult(res))
 	}
 	return code
 }

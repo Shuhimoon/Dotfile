@@ -75,3 +75,35 @@ func TestBuildStepsFedoraDefaults(t *testing.T) {
 		t.Fatalf("hooks %v", last.Hooks)
 	}
 }
+
+// --config-only builds config steps (configcopy.ToolIDs order) plus
+// zsh-plugins when zsh is selected, and nothing else.
+func TestBuildConfigSteps(t *testing.T) {
+	cases := []struct {
+		ids  []catalog.ID
+		want []string
+	}{
+		{[]catalog.ID{"zellij", "starship", "zsh"}, []string{"config:config zsh", "config:config starship", "config:config zellij", "zsh-plugins:zsh-plugins"}},
+		{[]catalog.ID{"zellij", "starship"}, []string{"config:config starship", "config:config zellij"}},
+		{[]catalog.ID{"zsh"}, []string{"config:config zsh", "zsh-plugins:zsh-plugins"}},
+	}
+	for _, c := range cases {
+		steps, err := install.BuildConfigSteps(c.ids)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, st := range steps {
+			if len(st.Argv) != 0 {
+				t.Fatalf("%v: argv %v", c.ids, st.Argv)
+			}
+			got = append(got, string(st.Kind)+":"+st.Title)
+		}
+		if strings.Join(got, "\n") != strings.Join(c.want, "\n") {
+			t.Errorf("%v:\n%s", c.ids, strings.Join(got, "\n"))
+		}
+	}
+	if _, err := install.BuildConfigSteps([]catalog.ID{"git"}); err == nil {
+		t.Fatal("git has no config")
+	}
+}

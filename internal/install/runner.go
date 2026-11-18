@@ -51,6 +51,9 @@ type Runner struct {
 	User func() string
 	// Progress is display only. An empty status means title is starting.
 	Progress func(title, status string)
+	// Seed are results the run starts with. --config-only seeds an "ok" result
+	// per tool so its config and zsh-plugins steps run without a package step.
+	Seed []ItemResult
 }
 
 func (r *Runner) Run(ctx context.Context, plans []Plan) ([]ItemResult, int) {
@@ -65,7 +68,7 @@ func (r *Runner) RunSteps(ctx context.Context, steps []Step) ([]ItemResult, int)
 	if r.DryRun {
 		return nil, 0
 	}
-	var results []ItemResult
+	results := append([]ItemResult(nil), r.Seed...)
 	var linkErr error
 	for i := 0; i < len(steps); i++ {
 		if err := ctx.Err(); err != nil {

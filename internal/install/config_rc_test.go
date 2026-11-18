@@ -223,3 +223,58 @@ func TestRunBaseBlockBothShells(t *testing.T) {
 		}
 	}
 }
+
+// --config-only: seeded "ok" results let the config and zsh-plugins steps run
+// with no package step; the only command run is git clone, and a rerun
+// changes nothing (no new backup, no clone).
+func TestRunConfigOnlyDeploysAndClones(t *testing.T) {
+	steps, err := install.BuildConfigSteps([]catalog.ID{"zsh", "starship", "zellij"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	repo := miniRepo(t)
+	put(t, filepath.Join(home, ".zshrc"), "# mine\n")
+	var argvs [][]string
+	ex := &fakeExec{fn: func(argv []string) (string, int, error) {
+		argvs = append(argvs, argv)
+		if argv[0] == "git" {
+			return "", 0, os.MkdirAll(argv[len(argv)-1], 0o755)
+		}
+		return "", 0, nil
+	}}
+	now := time.Date(2026, 11, 18, 1, 2, 3, 0, time.UTC)
+	seed := []install.ItemResult{{ID: "zsh", Status: "ok"}, {ID: "starship", Status: "ok"}, {ID: "zellij", Status: "ok"}}
+	r := &install.Runner{Exec: ex, Home: home, Repo: repo, Deploy: configcopy.Deploy, Seed: seed, Now: func() time.Time { return now }}
+	results, code := r.RunSteps(context.Background(), steps)
+	if code != 0 || len(results) != 3 {
+		t.Fatalf("code %d %+v", code, results)
+	}
+	for _, rel := range []string{".zshrc", ".config/starship.toml", ".config/zellij/config.kdl", ".zsh/fzf-tab", ".zsh/zsh-autosuggestions", ".zsh/zsh-syntax-highlighting"} {
+		if _, err := os.Stat(filepath.Join(home, rel)); err != nil {
+			t.Error(err)
+		}
+	}
+	if len(argvs) != len(install.ZshPlugins) {
+		t.Fatalf("argvs %v", argvs)
+	}
+	for _, a := range argvs {
+		if a[0] != "git" || a[1] != "clone" {
+			t.Fatalf("unexpected command %v", a)
+		}
+	}
+	baks, _ := filepath.Glob(filepath.Join(home, ".zshrc.bak.*"))
+	if len(baks) != 1 {
+		t.Fatalf("backups %v", baks)
+	}
+	argvs = nil
+	r.Now = func() time.Time { return now.Add(time.Hour) }
+	if _, code := r.RunSteps(context.Background(), steps); code != 0 || len(argvs) != 0 {
+		t.Fatalf("rerun code %d argvs %v", code, argvs)
+	}
+	baks, _ = filepath.Glob(filepath.Join(home, "*.bak.*"))
+	more, _ := filepath.Glob(filepath.Join(home, ".config", "*", "*.bak.*"))
+	if len(baks)+len(more) != 1 {
+		t.Fatalf("rerun made backups %v %v", baks, more)
+	}
+}

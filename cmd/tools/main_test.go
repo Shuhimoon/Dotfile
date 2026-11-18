@@ -100,3 +100,54 @@ func TestApplyForceMatchesDryRun(t *testing.T) {
 		t.Fatal(err2)
 	}
 }
+
+func TestApplyConfigOnlyDryRun(t *testing.T) {
+	runOnce := func(args ...string) (int, string, string) {
+		t.Helper()
+		in, stdout, stderr := tempIO(t)
+		code := run(args, in, stdout, stderr)
+		return code, readFromStart(t, stdout), readFromStart(t, stderr)
+	}
+	code, out, _ := runOnce("apply", "--config-only", "--dry-run")
+	if code != 0 || out != "config zsh\nconfig starship\nconfig zellij\nzsh-plugins\n" {
+		t.Fatalf("all: %d %q", code, out)
+	}
+	code, out, _ = runOnce("apply", "--config-only", "--only", "zellij,starship", "--dry-run")
+	if code != 0 || out != "config starship\nconfig zellij\n" {
+		t.Fatalf("only: %d %q", code, out)
+	}
+	code, out, _ = runOnce("apply", "--dry-run", "--only=zsh", "--config-only")
+	if code != 0 || out != "config zsh\nzsh-plugins\n" {
+		t.Fatalf("zsh: %d %q", code, out)
+	}
+	for _, only := range []string{"git", "zellij,nope", ""} {
+		code, out, errOut := runOnce("apply", "--config-only", "--only", only, "--dry-run")
+		if code != 2 || out != "" || errOut == "" {
+			t.Fatalf("--only %q: %d %q %q", only, code, out, errOut)
+		}
+	}
+}
+
+// A real --config-only run from this checkout deploys into $HOME without a
+// package manager or sudo, and reports each tool.
+func TestApplyConfigOnlyDeploys(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("XDG_CONFIG_HOME", "")
+	t.Setenv("SUDO_USER", "")
+	t.Setenv("PATH", "")
+	in, stdout, stderr := tempIO(t)
+	if code := run([]string{"apply", "--config-only", "--only", "starship,zellij"}, in, stdout, stderr); code != 0 {
+		t.Fatalf("code %d %q %q", code, readFromStart(t, stdout), readFromStart(t, stderr))
+	}
+	if got := readFromStart(t, stdout); got != "starship  ok  只部署設定\nzellij  ok  只部署設定\n" {
+		t.Fatalf("stdout %q", got)
+	}
+	kdl, err := os.ReadFile(filepath.Join(home, ".config", "zellij", "config.kdl"))
+	if err != nil || !strings.Contains(string(kdl), "file:"+filepath.Join(home, ".config", "zellij", "plugins", "zjstatus.wasm")) {
+		t.Fatalf("config.kdl %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(home, ".config", "starship.toml")); err != nil {
+		t.Fatal(err)
+	}
+}
