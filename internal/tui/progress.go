@@ -211,6 +211,7 @@ func (m *model) appendOutput(line string, cr bool) {
 }
 
 func (m *model) finishRun(results []install.ItemResult, code int) {
+	m.fixOwner()
 	if m.cancel != nil {
 		m.cancel()
 		m.cancel = nil
@@ -526,4 +527,11 @@ func paintProgress(p palette, m model, bodyH int) []string {
 		out[i] = p.padTo(p.ink(text, fg, p.bark, bold), m.width, p.bark)
 	}
 	return out
+}
+
+// fixOwner runs deps.FixOwner (sudo runs only).
+func (m model) fixOwner() {
+	if m.deps.FixOwner != nil {
+		m.deps.FixOwner()
+	}
 }

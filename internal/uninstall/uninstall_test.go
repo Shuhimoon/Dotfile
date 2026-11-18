@@ -142,7 +142,7 @@ func TestBuildSteps(t *testing.T) {
 			[]want{{"remove zellij", "brew uninstall zellij"}, {"config zellij", ""}, {"remove node", "brew uninstall node"}}},
 		{"zsh", []catalog.ID{"zsh"}, "zypper", 1000,
 			uninstall.Probe{Home: h, Exists: set("/usr/bin/zsh")},
-			[]want{{"remove zsh", "sudo zypper --non-interactive remove zsh"}, {"config zsh", ""}}},
+			[]want{{"remove zsh", "sudo zypper --non-interactive remove zsh"}, {"config zsh", ""}, {"zsh-plugins", ""}}},
 		{"apk + xbps", []catalog.ID{"bat"}, "xbps", 1000,
 			uninstall.Probe{Home: h, Exists: set("/usr/bin/bat")},
 			[]want{{"remove bat", "sudo xbps-remove -y bat"}}},

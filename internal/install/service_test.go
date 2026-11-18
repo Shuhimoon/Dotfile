@@ -31,14 +31,14 @@ func titles(steps []install.Step) string {
 }
 
 func TestDockerServiceStepOnlyOnLinux(t *testing.T) {
-	if got := titles(dockerSteps(t, "dnf", 1000)); got != "install docker,install podman,service docker" {
+	if got := titles(dockerSteps(t, "dnf", 1000)); got != "install docker,install podman,service docker,shell-rc" {
 		t.Fatalf("dnf %q", got)
 	}
-	if got := titles(dockerSteps(t, "apt", 1000)); got != "update,install docker,install podman,service docker" {
+	if got := titles(dockerSteps(t, "apt", 1000)); got != "update,install docker,install podman,service docker,shell-rc" {
 		t.Fatalf("apt %q", got)
 	}
 	for _, mgr := range []string{"yum", "pacman", "zypper", "apk", "xbps"} {
-		if got := titles(dockerSteps(t, mgr, 1000)); !strings.HasSuffix(got, "install docker,install podman,service docker") {
+		if got := titles(dockerSteps(t, mgr, 1000)); !strings.HasSuffix(got, "install docker,install podman,service docker,shell-rc") {
 			t.Fatalf("%s %q", mgr, got)
 		}
 	}
@@ -94,7 +94,7 @@ func TestDockerServiceSetsGroupAndService(t *testing.T) {
 	if strings.Join(cmds, "|") != want {
 		t.Fatalf("calls %q", cmds)
 	}
-	if strings.Join(notes, ",") != "install docker=ok,service docker=ok" {
+	if strings.Join(notes, ",") != "install docker=ok,service docker=ok,shell-rc=ok" {
 		t.Fatalf("notes %v", notes)
 	}
 	if len(results) != 1 || results[0].Status != "ok" || !strings.Contains(results[0].Note, "docker 群組") || !strings.Contains(results[0].Note, "已啟用並啟動") {
@@ -119,12 +119,12 @@ func TestDockerServiceFailureKeepsPackage(t *testing.T) {
 	if results[0].Status != "ok" || !strings.Contains(results[0].Note, "docker 設定失敗") {
 		t.Fatalf("%+v", results[0])
 	}
-	if notes[len(notes)-1] != "service docker=failed" {
+	if notes[len(notes)-2] != "service docker=failed" {
 		t.Fatalf("notes %v", notes)
 	}
 	// A failed package install skips the service step entirely.
 	results, notes, fe := runDocker(t, true, "dnf install", false)
-	if results[0].Status != "failed" || notes[len(notes)-1] != "service docker=skipped" || len(fe.calls) != 1 {
+	if results[0].Status != "failed" || notes[len(notes)-2] != "service docker=skipped" || len(fe.calls) != 1 {
 		t.Fatalf("%+v %v %v", results, notes, fe.calls)
 	}
 }

@@ -271,7 +271,7 @@ func matchTriple(names []string, q AssetQuery, prefix string, muslIfNoGnu, linux
 	if len(cands) == 0 && q.GOOS == "linux" && linuxPreferMusl && osTok == "unknown-linux-musl" {
 		cands = filterTriple(names, prefix, arch, "unknown-linux-gnu")
 	}
-	return one(cands, names)
+	return one(dropVariants(cands), names)
 }
 
 func filterTriple(names []string, prefix, arch, osTok string) []string {
@@ -351,4 +351,23 @@ func list30(names []string) string {
 		names = names[:30]
 	}
 	return strings.Join(names, ", ")
+}
+
+// dropVariants removes feature-reduced builds (zellij ships
+// zellij-no-web-<triple>.tar.gz next to zellij-<triple>.tar.gz) when the full
+// build is also there, so the pick is not ambiguous.
+func dropVariants(cands []string) []string {
+	if len(cands) < 2 {
+		return cands
+	}
+	var out []string
+	for _, n := range cands {
+		if !strings.Contains(n, "-no-web-") {
+			out = append(out, n)
+		}
+	}
+	if len(out) == 0 {
+		return cands
+	}
+	return out
 }

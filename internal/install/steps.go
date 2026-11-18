@@ -97,6 +97,9 @@ func BuildSteps(plans []Plan, euid int, home string) ([]Step, error) {
 			})
 		}
 	}
+	if selected["zsh"] {
+		steps = append(steps, Step{ItemID: "zsh", Title: "zsh-plugins", Kind: KindZshPlugins})
+	}
 	hooks := plannedHooks(plans)
 	if len(hooks) > 0 {
 		steps = append(steps, Step{
@@ -211,6 +214,9 @@ func plannedHooks(plans []Plan) []string {
 	}
 	if gopath {
 		hooks = append(hooks, "go")
+	}
+	if len(plans) > 0 {
+		hooks = append(hooks, "base")
 	}
 	return hooks
 }

@@ -38,11 +38,25 @@ const (
 	BlockFzf      BlockID = "fzf"
 	BlockRust     BlockID = "rust"
 	BlockGo       BlockID = "go"
+	// BlockBase is the general shell setup written on every install run: PATH
+	// (~/.local/bin, /usr/local/go/bin and $GOPATH/bin when they exist), the
+	// cargo env, eza aliases, and the starship prompt last. It covers the
+	// local-bin, starship, rust and go blocks, which are dropped when it is there.
+	BlockBase BlockID = "base"
 )
 
 // canonical is the order blocks appear in a file. local-bin comes first so a
 // release binary in ~/.local/bin is on PATH before starship/fzf look for it.
-var canonical = []BlockID{BlockLocalBin, BlockStarship, BlockFzf, BlockRust, BlockGo}
+var canonical = []BlockID{BlockLocalBin, BlockStarship, BlockFzf, BlockRust, BlockGo, BlockBase}
+
+// baseCovers are the per-tool blocks that BlockBase already contains.
+var baseCovers = []BlockID{BlockLocalBin, BlockStarship, BlockRust, BlockGo}
+
+// ProvidesMarker starts a line in a deployed rc template (shells/zsh/zshrc)
+// listing the blocks the template already does itself, e.g.
+// "# dotfiles:provides base local-bin starship rust go". Those blocks are
+// not appended to that file.
+const ProvidesMarker = "# dotfiles:provides "
 
 const localBinBody = `case ":$PATH:" in
   *:"$HOME/.local/bin":*) ;;
@@ -79,6 +93,8 @@ func Body(id BlockID, sh Shell) (string, error) {
 		return rustBody, nil
 	case BlockGo:
 		return goBody, nil
+	case BlockBase:
+		return baseBody(sh), nil
 	default:
 		return "", fmt.Errorf("未知的 block %s", id)
 	}
@@ -103,6 +119,7 @@ var legacyHook = map[BlockID]string{
 	BlockFzf:      "fzf",
 	BlockRust:     "cargo-env",
 	BlockGo:       "go-path",
+	BlockBase:     "",
 }
 
 // Order sorts and de-duplicates ids into file order. Unknown ids are an error.
@@ -209,14 +226,19 @@ func Ensure(content []byte, sh Shell, ids []BlockID) ([]byte, []BlockID, error) 
 		return nil, nil, err
 	}
 	have := Present(content)
-	all, _ := Order(append(append([]BlockID(nil), have...), ordered...))
+	merged, _ := Order(append(append([]BlockID(nil), have...), ordered...))
+	skip := provided(string(content), merged)
 	s := string(content)
-	var added []BlockID
-	for _, id := range all {
+	var added, all []BlockID
+	for _, id := range merged {
 		var found bool
 		s, found = stripBlock(s, id)
 		var legacy bool
 		s, legacy = stripLegacy(s, id)
+		if skip[id] {
+			continue
+		}
+		all = append(all, id)
 		if !found && !legacy && contains(ordered, id) {
 			added = append(added, id)
 		}
@@ -368,4 +390,55 @@ func writeAtomic(path string, body []byte, mode os.FileMode) error {
 	}
 	ok = true
 	return nil
+}
+
+// baseBody works in bash and zsh. Directories are added only when they
+// exist, ~/.local/bin ends up first, and starship comes last so it sees the
+// final PATH.
+func baseBody(sh Shell) string {
+	return `export GOPATH="${GOPATH:-$HOME/go}"
+for _dotfiles_dir in "$GOPATH/bin" /usr/local/go/bin "$HOME/.local/bin"; do
+  if [ -d "$_dotfiles_dir" ]; then
+    case ":$PATH:" in
+      *":$_dotfiles_dir:"*) ;;
+      *) PATH="$_dotfiles_dir:$PATH" ;;
+    esac
+  fi
+done
+unset _dotfiles_dir
+export PATH
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+if command -v eza >/dev/null 2>&1; then
+  alias ls='eza --group-directories-first'
+  alias ll='eza -lah --group-directories-first --git'
+fi
+` + guarded("starship", `eval "$(starship init `+string(sh)+`)"`)
+}
+
+// provided is the set of blocks a file does not need: the ids named on a
+// ProvidesMarker line, plus what BlockBase covers when base is there.
+func provided(content string, all []BlockID) map[BlockID]bool {
+	out := map[BlockID]bool{}
+	for _, line := range strings.Split(content, "\n") {
+		if rest, ok := strings.CutPrefix(strings.TrimSpace(line), strings.TrimSpace(ProvidesMarker)); ok {
+			for _, f := range strings.Fields(rest) {
+				out[BlockID(f)] = true
+			}
+		}
+	}
+	if out[BlockBase] || contains(all, BlockBase) {
+		for _, id := range baseCovers {
+			out[id] = true
+		}
+	}
+	return out
+}
+
+// StripManaged drops every managed dotfiles block, leaving the user's lines.
+func StripManaged(content []byte) []byte {
+	s := string(content)
+	for _, id := range canonical {
+		s, _ = stripBlock(s, id)
+	}
+	return []byte(s)
 }

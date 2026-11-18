@@ -45,7 +45,8 @@ func ConfigRoot(home, xdg string) string {
 //	starship  starship/starship.toml (theme) -> $XDG/starship.toml
 //	          (falls back to shells/starship/starship.toml)
 //	zellij    every file under zellij/ -> $XDG/zellij/ (config, layouts, plugins)
-//	zsh       shells/zsh/zshrc -> ~/.zshrc, only when it does not exist yet
+//	zsh       shells/zsh/zshrc -> ~/.zshrc (an existing one is backed up; its
+//	          managed blocks are carried over)
 func FilesFor(id, repo, home, xdg string) ([]File, error) {
 	if repo == "" || home == "" {
 		return nil, fmt.Errorf("沒有 repo 或 home")
@@ -61,7 +62,7 @@ func FilesFor(id, repo, home, xdg string) ([]File, error) {
 	case "zellij":
 		return walkDir(filepath.Join(repo, "zellij"), filepath.Join(cfg, "zellij"))
 	case "zsh":
-		return []File{{Src: filepath.Join(repo, "shells", "zsh", "zshrc"), Dst: filepath.Join(home, ".zshrc"), Policy: PolicyCopyIfMissing}}, nil
+		return []File{{Src: filepath.Join(repo, "shells", "zsh", "zshrc"), Dst: filepath.Join(home, ".zshrc"), Policy: PolicyZshrc}}, nil
 	default:
 		return nil, nil
 	}
@@ -130,6 +131,9 @@ func Undeploy(f File, now time.Time, roots ...string) (Result, error) {
 	}
 	want, srcErr := os.ReadFile(f.Src)
 	same := srcErr == nil && bytes.Equal(have, want)
+	if f.Policy == PolicyZshrc && srcErr == nil {
+		same = sameRc(have, want)
+	}
 	var res Result
 	switch {
 	case same:
@@ -137,7 +141,7 @@ func Undeploy(f File, now time.Time, roots ...string) (Result, error) {
 			return Result{}, err
 		}
 		res.Action = "removed"
-	case f.Policy == PolicyCopyIfMissing:
+	case f.Policy == PolicyCopyIfMissing || f.Policy == PolicyZshrc:
 		return Result{Action: "kept_modified"}, nil
 	default:
 		if err := backup(f.Dst, now); err != nil {

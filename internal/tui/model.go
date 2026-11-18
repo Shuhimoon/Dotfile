@@ -61,6 +61,9 @@ type Deps struct {
 	GOOS string
 	// Now stamps config backups; nil uses time.Now.
 	Now func() time.Time
+	// FixOwner gives files written under the user's home back to the user
+	// after a run (set for `sudo ./tools`; nil otherwise).
+	FixOwner func()
 }
 
 type model struct {

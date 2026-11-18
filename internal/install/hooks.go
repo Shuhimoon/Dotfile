@@ -40,5 +40,7 @@ func BlocksFor(results []ItemResult) []shellrc.BlockID {
 	if gopath {
 		out = append(out, shellrc.BlockGo)
 	}
-	return out
+	// The base block (PATH, cargo env, eza aliases, starship last) goes into both
+	// rc files on every install run.
+	return append(out, shellrc.BlockBase)
 }

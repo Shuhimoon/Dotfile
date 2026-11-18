@@ -15,6 +15,11 @@ type Policy int
 const (
 	PolicyBackupReplace Policy = iota
 	PolicyCopyIfMissing
+	// PolicyZshrc deploys the ~/.zshrc template: an existing file is backed up
+	// and replaced, and the managed dotfiles blocks it had (fzf…) are carried
+	// over. A file that is already the template plus managed blocks is left
+	// alone. Undeploy keeps a ~/.zshrc the user edited.
+	PolicyZshrc
 )
 
 type Result struct {
@@ -55,6 +60,9 @@ func Deploy(src, dst string, policy Policy, now time.Time, roots ...string) (Res
 	}
 	if policy == PolicyCopyIfMissing && exists {
 		return Result{Action: "skipped_exists"}, nil
+	}
+	if policy == PolicyZshrc {
+		return deployZshrc(dst, body, exists, now)
 	}
 	if exists {
 		old, err := os.ReadFile(dst)

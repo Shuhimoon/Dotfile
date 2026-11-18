@@ -20,11 +20,11 @@ func TestBlocksFor(t *testing.T) {
 		}
 		fed = append(fed, res)
 	}
-	if got := joinHooks(install.BlocksFor(fed)); got != "local-bin,fzf" {
+	if got := joinHooks(install.BlocksFor(fed)); got != "local-bin,fzf,base" {
 		t.Fatalf("fedora %s", got)
 	}
 	only := []install.ItemResult{{ID: "fzf", Method: pm.MethodPackage, Status: "ok"}}
-	if got := joinHooks(install.BlocksFor(only)); got != "fzf" {
+	if got := joinHooks(install.BlocksFor(only)); got != "fzf,base" {
 		t.Fatalf("fzf only %s", got)
 	}
 	// Order follows the fixed list, not the slice order.
@@ -34,7 +34,7 @@ func TestBlocksFor(t *testing.T) {
 		{ID: "rust", Method: pm.MethodRustup, Status: "ok"},
 		{ID: "eza", Method: pm.MethodRelease, Status: "ok", NeedsLocalBin: true},
 	}
-	if got := joinHooks(install.BlocksFor(mixed)); got != "local-bin,fzf,rust,go" {
+	if got := joinHooks(install.BlocksFor(mixed)); got != "local-bin,fzf,rust,go,base" {
 		t.Fatalf("order %s", got)
 	}
 	failed := []install.ItemResult{
@@ -42,7 +42,7 @@ func TestBlocksFor(t *testing.T) {
 		{ID: "rust", Method: pm.MethodRustup, Status: "pending-user"},
 		{ID: "go", Method: pm.MethodGoTarball, Status: "failed"},
 	}
-	if got := install.BlocksFor(failed); len(got) != 0 {
+	if got := joinHooks(install.BlocksFor(failed)); got != "base" {
 		t.Fatalf("failed %v", got)
 	}
 	// Package rust/go do not add the rust or go blocks.
@@ -50,7 +50,7 @@ func TestBlocksFor(t *testing.T) {
 		{ID: "rust", Method: pm.MethodPackage, Status: "ok"},
 		{ID: "go", Method: pm.MethodPackage, Status: "ok"},
 	}
-	if got := install.BlocksFor(pkg); len(got) != 0 {
+	if got := joinHooks(install.BlocksFor(pkg)); got != "base" {
 		t.Fatalf("pkg %v", got)
 	}
 }
@@ -68,10 +68,10 @@ func TestBlocksForStarshipAndSatisfied(t *testing.T) {
 		res  []install.ItemResult
 		want string
 	}{
-		{[]install.ItemResult{{ID: "starship", Method: pm.MethodRelease, Status: "ok", NeedsLocalBin: true}}, "local-bin,starship"},
-		{[]install.ItemResult{{ID: "starship", Method: pm.MethodPackage, Status: "satisfied"}}, "starship"},
-		{[]install.ItemResult{{ID: "starship", Method: pm.MethodPackage, Status: "failed"}}, ""},
-		{[]install.ItemResult{{ID: "rust", Method: pm.MethodRustup, Status: "satisfied"}}, ""},
+		{[]install.ItemResult{{ID: "starship", Method: pm.MethodRelease, Status: "ok", NeedsLocalBin: true}}, "local-bin,starship,base"},
+		{[]install.ItemResult{{ID: "starship", Method: pm.MethodPackage, Status: "satisfied"}}, "starship,base"},
+		{[]install.ItemResult{{ID: "starship", Method: pm.MethodPackage, Status: "failed"}}, "base"},
+		{[]install.ItemResult{{ID: "rust", Method: pm.MethodRustup, Status: "satisfied"}}, "base"},
 	}
 	for i, c := range cases {
 		if got := joinHooks(install.BlocksFor(c.res)); got != c.want {

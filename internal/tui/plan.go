@@ -32,7 +32,9 @@ func installDetail(st install.Step, home string) string {
 	case st.Kind == install.KindConfig:
 		s = "部署 " + string(st.ItemID) + " 設定檔（不同的既有檔先備份）"
 	case st.Kind == install.KindLink:
-		s = "在 ~/.bashrc、~/.zshrc 把 ~/.local/bin 加進 PATH"
+		s = "在 ~/.bashrc、~/.zshrc 寫入受管理區塊（PATH、cargo、eza alias、starship init）"
+	case st.Kind == install.KindZshPlugins:
+		s = "git clone fzf-tab、zsh-autosuggestions、zsh-syntax-highlighting 到 ~/.zsh/（已存在就略過）"
 	case st.Kind == install.KindGo:
 		s = "下載 go.dev 官方 tarball 到 /usr/local/go"
 	case st.Kind == install.KindRustup:
@@ -78,6 +80,8 @@ func uninstallDetail(st uninstall.Step) string {
 			b = append(b, shellrc.Begin(id))
 		}
 		parts = append(parts, "從 ~/.bashrc、~/.zshrc 刪除 "+strings.Join(b, "、")+" 區塊")
+	case uninstall.KindZshPlugins:
+		parts = append(parts, "刪除 ~/.zsh/ 裡的 fzf-tab、zsh-autosuggestions、zsh-syntax-highlighting 與 cache")
 	case uninstall.KindSSH:
 		parts = append(parts, "從 ~/.ssh/config 刪除 # >>> dotfiles:github >>> 區塊（鑰匙檔保留）")
 	case uninstall.KindConfig:

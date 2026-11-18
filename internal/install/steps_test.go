@@ -71,7 +71,7 @@ func TestBuildStepsFedoraDefaults(t *testing.T) {
 		}
 	}
 	last := steps[len(steps)-1]
-	if strings.Join(last.Hooks, ",") != "local-bin,fzf" {
+	if strings.Join(last.Hooks, ",") != "local-bin,fzf,base" {
 		t.Fatalf("hooks %v", last.Hooks)
 	}
 }
