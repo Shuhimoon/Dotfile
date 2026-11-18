@@ -33,6 +33,7 @@ unset LC_ALL LC_CTYPE
 # 指到固定路徑，開任何終端機都用同一個 agent，密碼整個登入階段只要打一次。
 # ssh-add -l 的離開碼：0 有金鑰、1 agent 在但沒金鑰、2 連不到 agent。
 # 只有連不到（2）時才重開，避免把已在跑、只是還沒載入金鑰的 agent 砍掉。
+[[ -d $HOME/.ssh ]] || mkdir -m 700 -p "$HOME/.ssh"
 export SSH_AUTH_SOCK="$HOME/.ssh/agent.sock"
 ssh-add -l &>/dev/null
 if [ $? -eq 2 ]; then
@@ -143,11 +144,39 @@ alias gd='git diff'
 alias gl='git log --oneline --graph -15'
 
 # ===== 工具鏈 / Tooling =====
-# Go 由上面「PATH 集中管理」統一處理（/usr/local/go/bin 與 $GOPATH/bin 存在才加），
-# 不另外跑 `go env`，避免沒有 go 時報錯；GOROOT 交給 go 自行偵測。
+# Go 的 PATH 由上面「PATH 集中管理」處理；下面的 go env 只在有 go 時才跑。
 
 # Rust / cargo (hx, steel, forge, rust-analyzer)
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
+
+# >>> grok installer >>>（有裝 grok 才載入）
+if [[ -d $HOME/.grok ]]; then
+  export PATH="$HOME/.grok/bin:$PATH"
+  fpath=(~/.grok/completions/zsh $fpath)
+  autoload -Uz compinit && compinit -C
+fi
+# <<< grok installer <<<
+
+# flutter SDK（存在才加）
+[[ -d $HOME/develop/flutter/bin ]] && export PATH="$HOME/develop/flutter/bin:$PATH"
+
+# Android / Java（只在 macOS）
+if [[ $OSTYPE == darwin* ]]; then
+  export JAVA_HOME="$(/usr/libexec/java_home -v 17 2>/dev/null || echo /opt/homebrew/opt/openjdk@17)"
+  export ANDROID_HOME="/opt/homebrew/share/android-commandlinetools"
+  export ANDROID_SDK_ROOT="$ANDROID_HOME"
+  export PATH="$JAVA_HOME/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+fi
+
+# Added by cua-driver-rs installer — see https://github.com/trycua/cua
+export PATH="$HOME/.local/bin:$PATH"
+
+# Go（有 go 才跑 go env）
+if command -v go &>/dev/null; then
+  export GOROOT="$(go env GOROOT)"
+  export GOPATH="$(go env GOPATH)"
+  export PATH="$PATH:$GOROOT/bin:$GOPATH/bin"
+fi
 
 # starship 提示字元（放最後，確保初始化時 PATH 已完整）
 if command -v starship &>/dev/null; then

@@ -30,11 +30,25 @@ func TestZshTemplateIsPortable(t *testing.T) {
 		}
 	}
 	codeOnly := strings.Join(code, "\n")
-	for _, bad := range []string{"/Users/", "fanice", "flutter", "JAVA_HOME", "ANDROID", "grok", "go env", "GOROOT="} {
+	// Mac lines stay (Dotfiles ships a Mac build too), but nothing is tied to
+	// one machine and Mac-only parts are guarded so Linux is unaffected.
+	for _, bad := range []string{"/Users/", "/home/", "fanice"} {
 		if strings.Contains(codeOnly, bad) {
-			t.Errorf("template still contains %q", bad)
+			t.Errorf("template hardcodes %q", bad)
 		}
 	}
+	guarded := func(guard, inner string) {
+		t.Helper()
+		g, i := strings.Index(codeOnly, guard), strings.Index(codeOnly, inner)
+		if g < 0 || i < 0 || g > i || strings.Contains(codeOnly[g:i], "\nfi\n") {
+			t.Errorf("%q is not inside %q", inner, guard)
+		}
+	}
+	guarded("if [[ $OSTYPE == darwin* ]]; then", "export JAVA_HOME=")
+	guarded("if [[ $OSTYPE == darwin* ]]; then", "export ANDROID_HOME=")
+	guarded("if [[ -d $HOME/.grok ]]; then", "export PATH=\"$HOME/.grok/bin")
+	guarded("[[ -d $HOME/develop/flutter/bin ]] &&", "develop/flutter/bin:$PATH")
+	guarded("if command -v go &>/dev/null; then", "go env GOROOT")
 	for _, line := range strings.Split(s, "\n") {
 		l := strings.TrimSpace(line)
 		if strings.HasPrefix(l, "source ~/.zsh/") && !strings.Contains(s, "-f "+strings.Fields(l)[1]) {

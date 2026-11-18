@@ -181,6 +181,9 @@ func readIdentity() identityMsg {
 		if err != nil {
 			return "", err
 		}
+		if s := os.Getenv("SUDO_USER"); os.Geteuid() == 0 && s != "" && s != "root" {
+			return s + "（sudo）", nil
+		}
 		return cu.Username, nil
 	}, os.Hostname)
 	ip := identityFallback

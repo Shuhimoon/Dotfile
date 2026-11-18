@@ -25,6 +25,9 @@ starship 只在這次裝好或已滿足時才寫 `starship init`；已安裝的�
   別人擁有的檔不動。在解出設定檔後、`apply` 跑完後、TUI 每次安裝結束與
   GitHub 鑰匙存檔後執行。
 - 套件指令：`pm.WithPrivilege` 在 euid 0 時本來就不加 sudo，所以不會出現密碼頁。
+- 系統指令（dnf、apt-get、systemctl…）執行時把 HOME 換回 root 的家目錄（`DOTFILES_SUDO_ROOT_HOME`），
+  套件 scriptlet 寫的檔（如 `.viminfo`）就跟一般 `sudo dnf` 一樣落在 `/root`，不會進使用者家目錄。
+  家目錄第一層若還有 root 擁有的項目，也一併 chown 回去。
 - 直接 root 登入（沒有 `SUDO_USER`）不變，用 `/root`。
 - macOS 上 brew 不能用 root 跑，`sudo ./tools` 在 mac 不支援。
 
@@ -40,8 +43,9 @@ starship 只在這次裝好或已滿足時才寫 `starship init`；已安裝的�
 
 ## zsh 範本（`shells/zsh/zshrc`）
 
-來源是 Shuhi 的 Mac `~/.zshrc`，拿掉 grok 安裝區塊、flutter、Android/JAVA_HOME、
-`/Users/...`、結尾的 `go env` 行；外掛 `source` 都先檢查檔案，starship 先檢查指令。
+來源是 Shuhi 的 Mac `~/.zshrc`，Mac 和 Linux 共用（Dotfiles 也出 Mac 版）。Mac 專用的部分保留但加條件：
+grok 區塊要有 `~/.grok`、flutter 要有 `~/develop/flutter/bin`、Android/JAVA_HOME 只在 `$OSTYPE == darwin*`、
+`go env` 要有 `go`；`/Users/fanice/.local/bin` 改成 `$HOME/.local/bin`。外掛 `source` 都先檢查檔案，starship 先檢查指令。
 
 - 部署策略 `configcopy.PolicyZshrc`：舊檔去掉 dotfiles 區塊後跟範本一樣就不動；
   不一樣就備份成 `.zshrc.bak.<UTC>`，寫入範本，再把舊檔裡的 dotfiles 區塊加回去。

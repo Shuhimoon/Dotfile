@@ -19,12 +19,18 @@ func sudoSetup(stderr io.Writer) (fix func(), target string, err error) {
 	if err != nil || !ok {
 		return fix, "", err
 	}
+	rootHome := "/root"
+	if u, err := user.LookupId("0"); err == nil && u.HomeDir != "" {
+		rootHome = u.HomeDir
+	}
+	_ = os.Setenv(sudouser.RootHomeEnv, rootHome)
 	if err := t.Env(os.Setenv, os.Getenv, os.Unsetenv); err != nil {
 		return fix, "", err
 	}
 	fixer := sudouser.NewFixer(t)
 	fix = func() {
-		if _, err := fixer.Fix(sudouser.Roots(t.Home)); err != nil {
+		roots := append(sudouser.Roots(t.Home), fixer.TopLevel(t.Home)...)
+		if _, err := fixer.Fix(roots); err != nil {
 			fmt.Fprintln(stderr, "修正檔案擁有者失敗:", err)
 		}
 	}
