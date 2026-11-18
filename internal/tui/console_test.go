@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -9,6 +10,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 	"github.com/mattn/go-runewidth"
 	"github.com/shuhi/dotfiles/internal/catalog"
+	"github.com/shuhi/dotfiles/internal/install"
 	"github.com/shuhi/dotfiles/internal/platform"
 )
 
@@ -123,5 +125,47 @@ func TestDNSList(t *testing.T) {
 	}
 	if dnsList(nil) != identityFallback {
 		t.Fatal("empty")
+	}
+}
+
+func TestConhostProgressSplitFits(t *testing.T) {
+	for _, styled := range []bool{false, true} {
+		for _, h := range []int{10, 16, 30} {
+			m := conhostModel(t, styled)
+			next, _ := m.Update(tea.WindowSizeMsg{Width: 80, Height: h})
+			m = next.(model)
+			m.phase = phaseInstalling
+			m.mode = modeInstall
+			m.steps = make([]install.Step, 30)
+			for i := range m.steps {
+				m.steps[i].Title = fmt.Sprintf("scoop install 工具%02d", i)
+			}
+			m.stepState = make([]string, 30)
+			for i := 0; i < 20; i++ {
+				m.applyProgress(m.steps[i].Title, "")
+				m.applyProgress(m.steps[i].Title, "ok")
+			}
+			m.applyProgress(m.steps[20].Title, "")
+			for i := 0; i < 40; i++ {
+				m.appendOutput(fmt.Sprintf("Installing '工具' (%d) ━━━━━━━━━━ 100%% … done", i), false)
+			}
+			if !m.usesSplit() {
+				t.Fatal("80 columns should split (layout width 79)")
+			}
+			view := m.View()
+			lines := strings.Split(view, "\n")
+			if len(lines) > h {
+				t.Fatalf("h%d: %d lines", h, len(lines))
+			}
+			for i, ln := range lines {
+				if w := conhostWidth(ln); w > 79 {
+					t.Fatalf("h%d styled=%v line %d is %d cells on conhost: %q", h, styled, i, w, ansi.Strip(ln))
+				}
+			}
+			plain := ansi.Strip(view)
+			if !strings.Contains(plain, "執行中  scoop install 工具20") || !strings.Contains(plain, " | ") || strings.ContainsAny(plain, "│…━") {
+				t.Fatalf("h%d styled=%v\n%s", h, styled, plain)
+			}
+		}
 	}
 }
