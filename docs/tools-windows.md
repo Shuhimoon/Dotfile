@@ -44,3 +44,12 @@
 ## 下載
 
 GoReleaser 會建 `tools_<版本>_windows_amd64.zip` 與 `tools_<版本>_windows_arm64.zip`，裡面是 `tools.exe` 與 README。這個分支不打 tag、不發佈。
+
+## 傳統主控台（conhost）顯示
+
+在 cmd.exe／Windows PowerShell 的傳統主控台視窗（不是 Windows Terminal）裡：
+
+- 啟動時打開 `DISABLE_NEWLINE_AUTO_RETURN`（結束時還原）。沒開的話，字一寫到最後一欄游標就跳到下一行，畫面每行都多換一次，Bubble Tea 重繪時往上移的行數就錯了，選單會重複、看起來卡住。
+- 畫面一律少用一欄（最後一欄永遠不寫），每行再截到這個寬度。
+- 繁中（code page 950）主控台把 `╭─│…↑↓` 這類「寬度不明確」字元畫成兩格，所以框線、箭頭、省略號改畫成 `+ - | . ^ v`（寬度不變）。Windows Terminal（有 `WT_SESSION`）照原樣顯示。`TOOLS_ASCII=1` 強制 ASCII，`TOOLS_ASCII=0` 關掉。
+- 首頁的架構不顯示 `uname -m`；DNS 從網卡設定（GetAdaptersAddresses）讀 IPv4 伺服器。

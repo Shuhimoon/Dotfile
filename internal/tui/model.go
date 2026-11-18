@@ -61,6 +61,11 @@ type Deps struct {
 	GOOS string
 	// Now stamps config backups; nil uses time.Now.
 	Now func() time.Time
+	// ASCII draws box lines, arrows and … as ASCII (Windows conhost with a
+	// CJK code page draws them two cells wide). See console.go.
+	ASCII bool
+	// ReserveLastColumn never writes the last column (conhost wraps there).
+	ReserveLastColumn bool
 }
 
 type model struct {

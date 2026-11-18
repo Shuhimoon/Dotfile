@@ -11,7 +11,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		if msg.Width > 0 {
-			m.width = msg.Width
+			m.width = m.layoutWidth(msg.Width)
 		}
 		if msg.Height > 0 {
 			m.height = msg.Height

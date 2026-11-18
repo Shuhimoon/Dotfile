@@ -25,6 +25,13 @@ func FormatItem(it catalog.Item, selected bool) string {
 }
 
 func FormatHeader(info platform.Info) string {
+	if info.OS.GOOS == "windows" && info.Arch.UnameM == "" {
+		pmName := info.Manager
+		if pmName == "" {
+			pmName = "未知"
+		}
+		return fmt.Sprintf("系統: %s    架構: %s（GOARCH=%s）    套件: %s", info.OS.SystemText, archFamily(info), info.Arch.GOARCH, pmName)
+	}
 	uname := info.Arch.UnameM
 	if uname == "" {
 		uname = "未知"
@@ -59,7 +66,14 @@ type catalogRow struct {
 }
 
 func (m model) View() string {
-	return render(m, m.deps.Styled)
+	out := render(m, m.deps.Styled)
+	if m.deps.ASCII {
+		out = ASCIIFrame(out)
+	}
+	if m.deps.ReserveLastColumn {
+		out = clipFrame(out, m.width)
+	}
+	return out
 }
 
 func render(m model, styled bool) string {

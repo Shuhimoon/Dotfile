@@ -94,11 +94,15 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 	uname := platform.UnameM()
 	osr, _ := platform.LoadOSRelease()
 	client := release.NewClients()
+	restoreConsole, cflags := prepareConsole()
+	defer restoreConsole()
 	var m tea.Model = tui.New(platform.Info{})
 	m = tui.SetDeps(m, tui.Deps{
-		Styled: isTTY(stdout) && os.Getenv("NO_COLOR") == "",
-		Force:  force,
-		Uname:  uname,
+		ASCII:             cflags.ASCII,
+		ReserveLastColumn: cflags.ReserveLastColumn,
+		Styled:            isTTY(stdout) && os.Getenv("NO_COLOR") == "",
+		Force:             force,
+		Uname:             uname,
 		Runner: install.Runner{
 			Home:      home,
 			XDG:       os.Getenv("XDG_CONFIG_HOME"),

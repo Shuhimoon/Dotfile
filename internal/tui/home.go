@@ -104,6 +104,9 @@ func homeSystem(info platform.Info) string {
 }
 
 func homeArch(info platform.Info) string {
+	if info.OS.GOOS == "windows" && info.Arch.UnameM == "" {
+		return fmt.Sprintf("%s（GOARCH=%s）", archFamily(info), info.Arch.GOARCH)
+	}
 	uname := info.Arch.UnameM
 	if uname == "" {
 		uname = identityFallback
@@ -187,10 +190,7 @@ func readIdentity() identityMsg {
 	if addrs, err := net.InterfaceAddrs(); err == nil {
 		ip = pickIP(addrs)
 	}
-	dns := identityFallback
-	if data, err := os.ReadFile("/etc/resolv.conf"); err == nil {
-		dns = parseResolv(string(data))
-	}
+	dns := systemDNS()
 	return identityMsg{User: name, Host: host, IP: ip, DNS: dns}
 }
 
@@ -518,4 +518,26 @@ func paintMenuLine(p palette, ln hLine, width int) string {
 		}
 	}
 	return plainPad(ln.left, core.String(), width)
+}
+
+// dnsList joins the distinct IPv4 servers (IPv6 site-local fec0:: defaults
+// on Windows are noise), comma separated.
+func dnsList(ips []net.IP) string {
+	var out []string
+	seen := map[string]bool{}
+	for _, ip := range ips {
+		v4 := ip.To4()
+		if v4 == nil || v4.IsUnspecified() {
+			continue
+		}
+		s := v4.String()
+		if !seen[s] {
+			seen[s] = true
+			out = append(out, s)
+		}
+	}
+	if len(out) == 0 {
+		return identityFallback
+	}
+	return strings.Join(out, ", ")
 }
