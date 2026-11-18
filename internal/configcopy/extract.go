@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // Extract copies every regular file of fsys into dir with the same layout.
@@ -20,7 +19,7 @@ func Extract(fsys fs.FS, dir string) error {
 		if err != nil {
 			return err
 		}
-		if strings.Contains(path, "..") {
+		if !fs.ValidPath(path) {
 			return fmt.Errorf("extract: 不合法的路徑 %s", path)
 		}
 		dst := filepath.Join(dir, filepath.FromSlash(path))
