@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -145,6 +146,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 	dry := false
 	bashrc := ""
 	configOnly := false
+	pmSet, bashrcSet := false, false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -177,8 +179,10 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			}
 			i++
 			pmFlag = args[i]
+			pmSet = true
 		case strings.HasPrefix(a, "--pm="):
 			pmFlag = strings.TrimPrefix(a, "--pm=")
+			pmSet = true
 		case a == "--bashrc":
 			if i+1 >= len(args) {
 				fmt.Fprintln(stderr, "缺少 --bashrc")
@@ -186,14 +190,20 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			}
 			i++
 			bashrc = args[i]
+			bashrcSet = true
 		case strings.HasPrefix(a, "--bashrc="):
 			bashrc = strings.TrimPrefix(a, "--bashrc=")
+			bashrcSet = true
 		default:
 			fmt.Fprintf(stderr, "未知參數 %s\n%s", a, usage)
 			return 2
 		}
 	}
 	if configOnly {
+		if pmSet || bashrcSet {
+			fmt.Fprintln(stderr, "--config-only 不能搭配 --pm 或 --bashrc")
+			return 2
+		}
 		return runConfigOnly(only, onlySet, dry, verbose, stdout, stderr)
 	}
 	var ids []catalog.ID
@@ -333,7 +343,27 @@ func runConfigOnly(only []string, onlySet, dry, verbose bool, stdout, stderr *os
 			ids = append(ids, catalog.ID(id))
 		}
 	}
-	steps, err := install.BuildConfigSteps(ids)
+	// The zsh plugins are cloned with git. Only when git is missing does this
+	// path look for a package manager and add the usual steps that install git.
+	var git []install.Plan
+	manager := ""
+	if slices.Contains(ids, "zsh") && !lookPath("git") {
+		osr, err := platform.LoadOSRelease()
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		manager, err = pm.DetectManager(runtime.GOOS, osr, lookPath)
+		if err != nil {
+			fmt.Fprintln(stderr, "zsh 外掛需要 git，但無法安裝 git:", err)
+			return 2
+		}
+		if git, err = install.ResolveAll([]catalog.ID{"git"}, manager); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+	}
+	steps, err := install.BuildConfigSteps(ids, git, os.Geteuid())
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -341,6 +371,9 @@ func runConfigOnly(only []string, onlySet, dry, verbose bool, stdout, stderr *os
 	if dry {
 		for _, st := range steps {
 			fmt.Fprintln(stdout, st.Title)
+			if len(st.Argv) > 0 {
+				fmt.Fprintln(stdout, strings.Join(st.Argv, " "))
+			}
 		}
 		return 0
 	}
@@ -373,8 +406,9 @@ func runConfigOnly(only []string, onlySet, dry, verbose bool, stdout, stderr *os
 		RepoErr: errText(repoErr),
 		Deploy:  configcopy.Deploy,
 		Seed:    seed,
+		Manager: manager,
 		Log: func(results []install.ItemResult) error {
-			return writeLog(home, "", verbose, results)
+			return writeLog(home, manager, verbose, results)
 		},
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -384,7 +418,16 @@ func runConfigOnly(only []string, onlySet, dry, verbose bool, stdout, stderr *os
 	for _, res := range results {
 		fmt.Fprintln(stdout, install.FormatResult(res))
 	}
+	if code == 2 {
+		fmt.Fprintln(stderr, "更新失敗：git 未安裝，zsh 外掛未下載")
+	}
 	return code
+}
+
+// lookPath reports whether bin is on PATH; tests replace it.
+var lookPath = func(bin string) bool {
+	_, err := exec.LookPath(bin)
+	return err == nil
 }
 
 func writeLog(home, manager string, verbose bool, results []install.ItemResult) error {

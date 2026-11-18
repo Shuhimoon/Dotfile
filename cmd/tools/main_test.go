@@ -102,6 +102,10 @@ func TestApplyForceMatchesDryRun(t *testing.T) {
 }
 
 func TestApplyConfigOnlyDryRun(t *testing.T) {
+	// git present: no git step, no package manager lookup
+	old := lookPath
+	t.Cleanup(func() { lookPath = old })
+	lookPath = func(string) bool { return true }
 	runOnce := func(args ...string) (int, string, string) {
 		t.Helper()
 		in, stdout, stderr := tempIO(t)
@@ -149,5 +153,51 @@ func TestApplyConfigOnlyDeploys(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(home, ".config", "starship.toml")); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// With zsh selected and git missing, --dry-run lists the git install step
+// (from the detected manager) before zsh-plugins; with git present, or
+// without zsh, there is no git step and no manager lookup.
+func TestApplyConfigOnlyDryRunGit(t *testing.T) {
+	old := lookPath
+	t.Cleanup(func() { lookPath = old })
+	var looked []string
+	runOnce := func(hasGit bool, args ...string) (int, string, string) {
+		t.Helper()
+		looked = nil
+		lookPath = func(bin string) bool {
+			looked = append(looked, bin)
+			return bin != "git" || hasGit
+		}
+		in, stdout, stderr := tempIO(t)
+		code := run(args, in, stdout, stderr)
+		return code, readFromStart(t, stdout), readFromStart(t, stderr)
+	}
+	code, out, errOut := runOnce(false, "apply", "--config-only", "--dry-run")
+	if code != 0 || !strings.HasPrefix(out, "config zsh\nconfig starship\nconfig zellij\n") || !strings.Contains(out, "install git\n") || !strings.HasSuffix(out, "zsh-plugins\n") {
+		t.Fatalf("git missing: %d %q %q", code, out, errOut)
+	}
+	if !strings.Contains(out, " git\n") {
+		t.Fatalf("no git install argv: %q", out)
+	}
+	code, out, _ = runOnce(true, "apply", "--config-only", "--dry-run")
+	if code != 0 || out != "config zsh\nconfig starship\nconfig zellij\nzsh-plugins\n" || strings.Join(looked, ",") != "git" {
+		t.Fatalf("git present: %d %q looked %v", code, out, looked)
+	}
+	code, out, _ = runOnce(false, "apply", "--config-only", "--only", "zellij", "--dry-run")
+	if code != 0 || out != "config zellij\n" || len(looked) != 0 {
+		t.Fatalf("no zsh: %d %q looked %v", code, out, looked)
+	}
+}
+
+func TestApplyConfigOnlyRejectsPmAndBashrc(t *testing.T) {
+	for _, extra := range [][]string{{"--pm", "dnf"}, {"--pm=apt"}, {"--bashrc", "/tmp/x"}, {"--bashrc=/tmp/x"}} {
+		in, stdout, stderr := tempIO(t)
+		args := append([]string{"apply", "--config-only", "--dry-run"}, extra...)
+		code := run(args, in, stdout, stderr)
+		if code != 2 || readFromStart(t, stdout) != "" || !strings.Contains(readFromStart(t, stderr), "--config-only 不能搭配 --pm 或 --bashrc") {
+			t.Fatalf("%v: %d %q", extra, code, readFromStart(t, stderr))
+		}
 	}
 }
