@@ -20,6 +20,9 @@ const (
 	// over. A file that is already the template plus managed blocks is left
 	// alone. Undeploy keeps a ~/.zshrc the user edited.
 	PolicyZshrc
+	// PolicyZellijConfig is PolicyBackupReplace for zellij/config.kdl, with the
+	// zjstatus.wasm path rewritten to the deployed plugin's absolute path.
+	PolicyZellijConfig
 )
 
 type Result struct {
@@ -63,6 +66,9 @@ func Deploy(src, dst string, policy Policy, now time.Time, roots ...string) (Res
 	}
 	if policy == PolicyZshrc {
 		return deployZshrc(dst, body, exists, now)
+	}
+	if policy == PolicyZellijConfig {
+		body = zellijConfig(dst, body)
 	}
 	if exists {
 		old, err := os.ReadFile(dst)
