@@ -26,6 +26,7 @@ type Runner struct {
 	Bashrc    string
 	Zshrc     string
 	Repo      string
+	RepoErr   string // why Repo is empty; a config step fails with it
 	GoRoot    string
 	DryRun    bool
 	Manager   string
@@ -497,8 +498,17 @@ func (r *Runner) doConfig(ctx context.Context, st Step, results []ItemResult) (I
 		}
 		return cur, false, false
 	}
-	if r.Deploy == nil || r.Repo == "" || r.Home == "" {
+	if r.Deploy == nil || r.Home == "" {
 		return cur, false, false
+	}
+	if r.Repo == "" {
+		cur.Status = "failed"
+		cur.ErrText = r.RepoErr
+		if cur.ErrText == "" {
+			cur.ErrText = "設定檔來源不存在"
+		}
+		cur.Note = ""
+		return cur, true, false
 	}
 	files, err := configcopy.FilesFor(string(st.ItemID), r.Repo, r.Home, r.XDG)
 	if err != nil {

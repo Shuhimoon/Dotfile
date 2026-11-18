@@ -95,7 +95,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	repo := configRepo(home)
+	repo, repoErr := configRepo(home)
 	fixOwner()
 	uname := platform.UnameM()
 	osr, _ := platform.LoadOSRelease()
@@ -112,6 +112,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 			Bashrc:    filepath.Join(home, ".bashrc"),
 			Zshrc:     filepath.Join(home, ".zshrc"),
 			Repo:      repo,
+			RepoErr:   errText(repoErr),
 			GOOS:      runtime.GOOS,
 			GOARCH:    runtime.GOARCH,
 			Libc:      release.DetectLibc(osr.ID, release.LibcExists),
@@ -263,7 +264,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		}
 		return 0
 	}
-	repo := configRepo(home)
+	repo, repoErr := configRepo(home)
 	fixOwner()
 	uname := platform.UnameM()
 	client := release.NewClients()
@@ -275,6 +276,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		XDG:       os.Getenv("XDG_CONFIG_HOME"),
 		Bashrc:    bashrc,
 		Repo:      repo,
+		RepoErr:   errText(repoErr),
 		Manager:   manager,
 		GOOS:      runtime.GOOS,
 		GOARCH:    runtime.GOARCH,
@@ -378,24 +380,34 @@ func isDotfilesRepo(dir string) bool {
 // this repo (development) the checkout itself is used. A released binary
 // uses its embedded copy, extracted to
 // ~/.local/share/dotfiles-tools/configs/<version>. "" means no configs
-// (the config step is then skipped, as before).
-func configRepo(home string) string {
+// (the config step then fails with the returned error, or with a generic
+// reason when there is none).
+func configRepo(home string) (string, error) {
 	if repo, err := findRepo(); err == nil {
-		return repo
+		return repo, nil
 	}
 	return extractConfigs(home, version)
 }
 
-func extractConfigs(home, ver string) string {
+// extractConfigs returns "" and no error without a home (nothing to extract
+// into, as before); an extract failure is returned, not printed, so the TUI's
+// alt screen cannot hide it.
+func extractConfigs(home, ver string) (string, error) {
 	if home == "" {
-		return ""
+		return "", nil
 	}
 	dir := filepath.Join(home, ".local", "share", "dotfiles-tools", "configs", safeVersion(ver))
 	if err := configcopy.Extract(dotfiles.Configs, dir); err != nil {
-		fmt.Fprintln(os.Stderr, "設定檔解壓失敗:", err)
+		return "", fmt.Errorf("設定檔解壓失敗: %w", err)
+	}
+	return dir, nil
+}
+
+func errText(err error) string {
+	if err == nil {
 		return ""
 	}
-	return dir
+	return err.Error()
 }
 
 func safeVersion(v string) string {
