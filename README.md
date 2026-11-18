@@ -9,6 +9,8 @@ go test ./...
 ```
 
 - 設定檔：`starship/`、`zellij/`、`shells/zsh/`，安裝成功後部署到 `~/.config` 與 `~/.zshrc`（不同的既有檔先備份成 `.bak.<UTC>`；舊 `~/.zshrc` 裡的 dotfiles 區塊會搬到新檔）。
+- `wezterm/`、`ghostty/` 是終端機程式的設定，目錄不安裝這兩個程式，所以 `tools` 刻意不部署它們。
+- `shells/bash/hooks/`：安裝工具後寫進 rc 檔的片段（cargo-env、fzf、go-path、local-bin、starship），bash 與 zsh 共用。
 - shell 設定：每次安裝都在 `~/.bashrc` 與 `~/.zshrc`（沒有就建立）寫入 `# >>> dotfiles:<tool> >>>` 區塊，解除安裝時只刪那幾行。`dotfiles:base` 區塊放 PATH（`~/.local/bin`、`$GOPATH/bin`、`/usr/local/go/bin`，存在才加）、cargo env、eza alias，最後是 `starship init`（有 starship 才跑）。zsh 範本自己就有這些（`# dotfiles:provides` 行），不會重複加。
 - zsh 外掛：裝 zsh 時 `git clone` fzf-tab、zsh-autosuggestions、zsh-syntax-highlighting 到 `~/.zsh/`（已存在就略過），並建立 `~/.zsh/cache`；解除安裝 zsh 時刪掉。
 - `sudo ./tools`：偵測 `SUDO_USER`，把 HOME 換回本人的家目錄，工具、設定、rc、`~/.ssh` 都寫到本人那裡，結束後把 root 建立的檔案 chown 回 `SUDO_UID:SUDO_GID`（別人的檔不動）；套件指令不加 sudo、不問密碼。直接用 root 登入（沒有 `SUDO_USER`）就用 root 的家目錄。
