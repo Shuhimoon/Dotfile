@@ -47,7 +47,7 @@ func footerHints(m model) []hint {
 	case phaseGitKey:
 		return gitKeyHints(m)
 	case phaseInstalling:
-		return []hint{{Key: "操作"}, {Key: "ctrl+c", Desc: "取消"}}
+		return []hint{{Key: "操作"}, {Key: "ctrl+c", Desc: "取消"}, {Key: "↑/↓", Desc: "捲動清單"}, {Key: "end", Desc: "跟隨進度"}}
 	case phaseReport:
 		if m.dryRun {
 			return []hint{{Key: "操作"}, {Key: "任意鍵", Desc: dryBackDesc(m)}}

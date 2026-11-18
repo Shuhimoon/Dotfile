@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 	"github.com/shuhi/dotfiles/internal/install"
 	"github.com/shuhi/dotfiles/internal/uninstall"
@@ -44,6 +45,7 @@ func (m model) launch(mode sudoMode, pw []byte) (tea.Model, tea.Cmd) {
 	m.stepNext = 0
 	m.status = ""
 	m.runID++
+	m.progOffset, m.progManual = 0, false
 	ch := make(chan bridgeMsg, 64)
 	m.events = ch
 	runID := m.runID
@@ -167,6 +169,7 @@ func (m *model) applyProgress(title, status string) {
 			m.stepState[i] = stRunning
 			m.stepRun = i
 			m.stepNext = i + 1
+			m.progManual = false
 		}
 		return
 	}
@@ -396,39 +399,18 @@ func (m model) resultLines() []pline {
 	return out
 }
 
-// progressLines lays the page out in exactly bodyH lines or fewer:
-// head, warnings, steps (or results) windowed, then the output tail.
+// progressLines is the stacked layout (narrow terminals, and the plan or
+// results without output) in bodyH lines or fewer: head, warnings, the list
+// windowed around the running step, then the output tail.
 func progressLines(m model, bodyH int) []pline {
 	if bodyH <= 0 {
 		return nil
 	}
-	lines := []pline{m.progressHead()}
-	for _, w := range m.warnings {
-		// Warnings wrap instead of being cut: they are the only place the
-		// python risk is shown now that nothing asks for y.
-		for _, part := range strings.Split(ansi.Hardwrap(w, max(m.width, 1), true), "\n") {
-			lines = append(lines, pline{part, toneWarn})
-		}
-	}
+	lines := progressTop(m)
 	if len(lines) >= bodyH {
 		return lines[:bodyH]
 	}
-	list := m.stepLines()
-	focus := m.stepRun
-	if focus < 0 {
-		focus = m.stepNext
-	}
-	if m.phase == phaseReport && len(m.results) > 0 {
-		list = m.resultLines()
-		focus = 0
-	}
-	if m.phase == phaseReport && m.dryRun {
-		list = make([]pline, 0, len(m.plan))
-		for _, s := range m.plan {
-			list = append(list, pline{s, tonePlain})
-		}
-		focus = 0
-	}
+	list, focus := m.progressList()
 	room := bodyH - len(lines)
 	outN := 0
 	if len(m.output) > 0 && room >= 4 {
@@ -446,11 +428,7 @@ func progressLines(m model, bodyH int) []pline {
 	if outN > 0 {
 		listRoom = room - outN - 1
 	}
-	start, end := window(len(list), focus, 0, listRoom)
-	lines = append(lines, list[start:end]...)
-	if hidden := len(list) - end; hidden > 0 && end > start {
-		lines[len(lines)-1] = pline{fmt.Sprintf("…還有 %d 項", hidden+1), toneMuted}
-	}
+	lines = append(lines, windowList(list, focus, listRoom, m.progOffset, m.progManual)...)
 	if outN > 0 {
 		lines = append(lines, pline{"輸出", toneMuted})
 		for _, o := range m.output[len(m.output)-outN:] {
@@ -461,6 +439,19 @@ func progressLines(m model, bodyH int) []pline {
 }
 
 func plainProgress(m model, bodyH int) []string {
+	if m.usesSplit() {
+		lw, rw := m.paneWidths()
+		rows := splitRows(m, bodyH)
+		out := make([]string, len(rows))
+		for i, r := range rows {
+			if !r.split {
+				out[i] = fitLine(r.full.text, m.width)
+				continue
+			}
+			out[i] = strings.TrimRight(splitLine(r.left.text, r.right.text, lw, rw), " ")
+		}
+		return out
+	}
 	pl := progressLines(m, bodyH)
 	out := make([]string, len(pl))
 	for i, l := range pl {
@@ -485,29 +476,52 @@ func fitLine(s string, width int) string {
 	return s
 }
 
+func toneInk(p palette, l pline) (fg lipgloss.Color, bold bool) {
+	fg = p.cream
+	switch l.tone {
+	case toneHead:
+		fg, bold = p.cream, true
+	case toneRun:
+		fg = selectColor
+	case toneOK:
+		fg = p.key
+	case toneFail:
+		fg = failColor
+	case toneMuted:
+		fg = p.muted
+	case toneWarn:
+		fg = p.gold
+	case toneOut:
+		fg = p.sand
+	case tonePlain:
+		fg = planColor
+	}
+	return fg, bold
+}
+
 func paintProgress(p palette, m model, bodyH int) []string {
+	if m.usesSplit() {
+		lw, rw := m.paneWidths()
+		rows := splitRows(m, bodyH)
+		out := make([]string, len(rows))
+		for i, r := range rows {
+			if !r.split {
+				fg, bold := toneInk(p, r.full)
+				out[i] = p.ink(fitLine(strings.TrimRight(r.full.text, " "), m.width), fg, p.bark, bold)
+				continue
+			}
+			lfg, lbold := toneInk(p, r.left)
+			rfg, rbold := toneInk(p, r.right)
+			left := padWidth(fitCell(strings.TrimRight(r.left.text, " "), lw), lw)
+			right := fitCell(strings.TrimRight(r.right.text, " "), rw)
+			out[i] = p.ink(left, lfg, p.bark, lbold) + p.ink(splitDivider, p.muted, p.bark, false) + p.ink(right, rfg, p.bark, rbold)
+		}
+		return out
+	}
 	pl := progressLines(m, bodyH)
 	out := make([]string, len(pl))
 	for i, l := range pl {
-		fg, bold := p.cream, false
-		switch l.tone {
-		case toneHead:
-			fg, bold = p.cream, true
-		case toneRun:
-			fg = selectColor
-		case toneOK:
-			fg = p.key
-		case toneFail:
-			fg = failColor
-		case toneMuted:
-			fg = p.muted
-		case toneWarn:
-			fg = p.gold
-		case toneOut:
-			fg = p.sand
-		case tonePlain:
-			fg = planColor
-		}
+		fg, bold := toneInk(p, l)
 		text := fitLine(strings.TrimRight(l.text, " "), m.width)
 		out[i] = p.padTo(p.ink(text, fg, p.bark, bold), m.width, p.bark)
 	}

@@ -88,6 +88,9 @@ func (m model) onKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if k.String() == "ctrl+c" {
 			return m.cancelRun()
 		}
+		if next, ok := m.progressScrollKey(k); ok {
+			return next, nil
+		}
 	case phaseReport:
 		// The d-key plan goes back to its list; after a real run any key,
 		// q included, returns to the home page.
