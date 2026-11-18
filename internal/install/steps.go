@@ -111,6 +111,45 @@ func BuildSteps(plans []Plan, euid int, home string) ([]Step, error) {
 	return steps, nil
 }
 
+// BuildConfigSteps is the --config-only path: one config step per id (in
+// configcopy.ToolIDs order) and, when zsh is among them, the zsh-plugins step.
+// No release, service or shell-rc step. git plans, given only when git is
+// missing and the zsh plugins need it, add BuildSteps' usual update and
+// install steps for git right before zsh-plugins; only those may run the
+// package manager or sudo.
+// The runner needs an "ok" result for each id first (see Runner.Seed).
+func BuildConfigSteps(ids []catalog.ID, git []Plan, euid int) ([]Step, error) {
+	selected := map[catalog.ID]bool{}
+	for _, id := range ids {
+		if !configcopy.HasConfig(string(id)) {
+			return nil, fmt.Errorf("%s 沒有設定檔", id)
+		}
+		selected[id] = true
+	}
+	var steps []Step
+	for _, cid := range configcopy.ToolIDs {
+		id := catalog.ID(cid)
+		if selected[id] {
+			steps = append(steps, Step{ItemID: id, Title: "config " + string(id), Kind: KindConfig})
+		}
+	}
+	if selected["zsh"] {
+		if len(git) > 0 {
+			gitSteps, err := BuildSteps(git, euid, "")
+			if err != nil {
+				return nil, err
+			}
+			for _, st := range gitSteps {
+				if st.Kind != KindLink {
+					steps = append(steps, st)
+				}
+			}
+		}
+		steps = append(steps, Step{ItemID: "zsh", Title: "zsh-plugins", Kind: KindZshPlugins})
+	}
+	return steps, nil
+}
+
 func hasPackage(plans []Plan) bool {
 	for _, p := range plans {
 		if p.Method == pm.MethodPackage {

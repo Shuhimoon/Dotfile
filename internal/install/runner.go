@@ -26,6 +26,7 @@ type Runner struct {
 	Bashrc    string
 	Zshrc     string
 	Repo      string
+	RepoErr   string // why Repo is empty; a config step fails with it
 	GoRoot    string
 	DryRun    bool
 	Manager   string
@@ -50,6 +51,9 @@ type Runner struct {
 	User func() string
 	// Progress is display only. An empty status means title is starting.
 	Progress func(title, status string)
+	// Seed are results the run starts with. --config-only seeds an "ok" result
+	// per tool so its config and zsh-plugins steps run without a package step.
+	Seed []ItemResult
 }
 
 func (r *Runner) Run(ctx context.Context, plans []Plan) ([]ItemResult, int) {
@@ -64,7 +68,7 @@ func (r *Runner) RunSteps(ctx context.Context, steps []Step) ([]ItemResult, int)
 	if r.DryRun {
 		return nil, 0
 	}
-	var results []ItemResult
+	results := append([]ItemResult(nil), r.Seed...)
 	var linkErr error
 	for i := 0; i < len(steps); i++ {
 		if err := ctx.Err(); err != nil {
@@ -518,8 +522,17 @@ func (r *Runner) doConfig(ctx context.Context, st Step, results []ItemResult) (I
 		}
 		return cur, false, false
 	}
-	if r.Deploy == nil || r.Repo == "" || r.Home == "" {
+	if r.Deploy == nil || r.Home == "" {
 		return cur, false, false
+	}
+	if r.Repo == "" {
+		cur.Status = "failed"
+		cur.ErrText = r.RepoErr
+		if cur.ErrText == "" {
+			cur.ErrText = "設定檔來源不存在"
+		}
+		cur.Note = ""
+		return cur, true, false
 	}
 	files, err := configcopy.FilesFor(string(st.ItemID), r.Repo, r.Home, r.XDG)
 	if err != nil {

@@ -1,6 +1,7 @@
 package configcopy
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -42,5 +43,38 @@ func TestExtractWritesAndRefreshes(t *testing.T) {
 	}
 	if err := Extract(fsys, "relative"); err == nil {
 		t.Fatal("relative dir accepted")
+	}
+}
+
+// dotDotFS lists an extra ".." entry at its root, which fs.ValidPath rejects.
+type dotDotFS struct{ fstest.MapFS }
+
+func (f dotDotFS) ReadDir(name string) ([]fs.DirEntry, error) {
+	ents, err := f.MapFS.ReadDir(name)
+	if name == "." {
+		ents = append([]fs.DirEntry{dotDotEntry{}}, ents...)
+	}
+	return ents, err
+}
+
+type dotDotEntry struct{}
+
+func (dotDotEntry) Name() string               { return ".." }
+func (dotDotEntry) IsDir() bool                { return false }
+func (dotDotEntry) Type() fs.FileMode          { return 0 }
+func (dotDotEntry) Info() (fs.FileInfo, error) { return nil, fs.ErrNotExist }
+
+func TestExtractRejectsInvalidPath(t *testing.T) {
+	dir := t.TempDir()
+	err := Extract(dotDotFS{fstest.MapFS{"a": {Data: []byte("a")}}}, dir)
+	if err == nil || err.Error() != "extract: 不合法的路徑 .." {
+		t.Fatalf("err %v", err)
+	}
+	// ".." inside a name is a valid path, not a parent reference.
+	if err := Extract(fstest.MapFS{"zellij/a..b.kdl": {Data: []byte("x")}}, dir); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(filepath.Join(dir, "zellij", "a..b.kdl")); string(got) != "x" {
+		t.Fatalf("got %q", got)
 	}
 }

@@ -75,3 +75,74 @@ func TestBuildStepsFedoraDefaults(t *testing.T) {
 		t.Fatalf("hooks %v", last.Hooks)
 	}
 }
+
+// --config-only builds config steps (configcopy.ToolIDs order) plus
+// zsh-plugins when zsh is selected, and nothing else.
+func TestBuildConfigSteps(t *testing.T) {
+	cases := []struct {
+		ids  []catalog.ID
+		want []string
+	}{
+		{[]catalog.ID{"zellij", "starship", "zsh"}, []string{"config:config zsh", "config:config starship", "config:config zellij", "zsh-plugins:zsh-plugins"}},
+		{[]catalog.ID{"zellij", "starship"}, []string{"config:config starship", "config:config zellij"}},
+		{[]catalog.ID{"zsh"}, []string{"config:config zsh", "zsh-plugins:zsh-plugins"}},
+	}
+	for _, c := range cases {
+		steps, err := install.BuildConfigSteps(c.ids, nil, 1000)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, st := range steps {
+			if len(st.Argv) != 0 {
+				t.Fatalf("%v: argv %v", c.ids, st.Argv)
+			}
+			got = append(got, string(st.Kind)+":"+st.Title)
+		}
+		if strings.Join(got, "\n") != strings.Join(c.want, "\n") {
+			t.Errorf("%v:\n%s", c.ids, strings.Join(got, "\n"))
+		}
+	}
+	if _, err := install.BuildConfigSteps([]catalog.ID{"git"}, nil, 1000); err == nil {
+		t.Fatal("git has no config")
+	}
+}
+
+// With git missing, the git steps BuildSteps makes (update when the manager
+// has one, then install git; no shell-rc) go right before zsh-plugins, and
+// only when zsh is selected.
+func TestBuildConfigStepsInstallsMissingGit(t *testing.T) {
+	for _, c := range []struct {
+		manager string
+		euid    int
+		want    []string
+	}{
+		{"dnf", 1000, []string{"config:config zsh", "config:config zellij", "package:install git:sudo dnf install -y git", "zsh-plugins:zsh-plugins"}},
+		{"dnf", 0, []string{"config:config zsh", "config:config zellij", "package:install git:dnf install -y git", "zsh-plugins:zsh-plugins"}},
+		{"apt", 1000, []string{"config:config zsh", "config:config zellij", "update:update:sudo apt-get update", "package:install git:sudo apt-get install -y --no-install-recommends git", "zsh-plugins:zsh-plugins"}},
+	} {
+		git, err := install.ResolveAll([]catalog.ID{"git"}, c.manager)
+		if err != nil {
+			t.Fatal(err)
+		}
+		steps, err := install.BuildConfigSteps([]catalog.ID{"zellij", "zsh"}, git, c.euid)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, st := range steps {
+			s := string(st.Kind) + ":" + st.Title
+			if len(st.Argv) > 0 {
+				s += ":" + strings.Join(st.Argv, " ")
+			}
+			got = append(got, s)
+		}
+		if strings.Join(got, "\n") != strings.Join(c.want, "\n") {
+			t.Errorf("%s euid %d:\n%s", c.manager, c.euid, strings.Join(got, "\n"))
+		}
+		noZsh, _ := install.BuildConfigSteps([]catalog.ID{"zellij"}, git, c.euid)
+		if len(noZsh) != 1 {
+			t.Errorf("git steps without zsh: %+v", noZsh)
+		}
+	}
+}

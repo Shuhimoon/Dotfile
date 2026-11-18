@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/shuhi/dotfiles/internal/catalog"
+	"github.com/shuhi/dotfiles/internal/configcopy"
 	"github.com/shuhi/dotfiles/internal/install"
 	"github.com/shuhi/dotfiles/internal/pm"
 	"github.com/shuhi/dotfiles/internal/release"
@@ -835,5 +836,59 @@ func TestForceDoesNotSkipReleaseOrGo(t *testing.T) {
 	}
 	if results[0].Status != "ok" || results[1].Status != "failed" || !strings.Contains(results[1].ErrText, "已存在，不覆蓋") {
 		t.Fatalf("%+v", results)
+	}
+}
+
+// With no config source (Repo empty) the config step fails with the reason
+// instead of reporting ok after copying nothing; the failure reaches the
+// progress line and the install log.
+func TestConfigStepFailsWithoutRepo(t *testing.T) {
+	plans, err := install.ResolveAll([]catalog.ID{"starship"}, "dnf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct{ repoErr, want string }{
+		{"", "設定檔來源不存在"},
+		{"設定檔解壓失敗: disk full", "設定檔解壓失敗: disk full"},
+	} {
+		home := t.TempDir()
+		steps, err := install.BuildSteps(plans, 0, home)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var progress []string
+		var logged []install.ItemResult
+		r := &install.Runner{
+			Home:     home,
+			RepoErr:  tc.repoErr,
+			Exists:   func(string) bool { return false },
+			Release:  func(context.Context, string, string, release.AssetQuery) error { return nil },
+			Deploy:   configcopy.Deploy,
+			Rc:       shellrc.EnsureFile,
+			Progress: func(title, status string) { progress = append(progress, title+"="+status) },
+			Log:      func(res []install.ItemResult) error { logged = res; return nil },
+		}
+		results, code := r.RunSteps(context.Background(), steps)
+		if code == 0 {
+			t.Fatalf("%q: code 0 %+v", tc.repoErr, results)
+		}
+		var got install.ItemResult
+		for _, res := range logged {
+			if res.ID == "starship" {
+				got = res
+			}
+		}
+		if got.Status != "failed" || got.ErrText != tc.want {
+			t.Fatalf("%q: logged %+v", tc.repoErr, got)
+		}
+		failed := false
+		for _, p := range progress {
+			if strings.HasSuffix(p, "=failed") {
+				failed = true
+			}
+		}
+		if !failed {
+			t.Fatalf("%q: progress %v", tc.repoErr, progress)
+		}
 	}
 }

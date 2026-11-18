@@ -18,8 +18,7 @@ type File struct {
 }
 
 // ToolIDs are the catalog tools that have a config directory in the repo.
-// ghostty/ and wezterm/ belong to terminal apps the catalog does not install;
-// WSL/ is empty.
+// ghostty/ and wezterm/ belong to terminal apps the catalog does not install.
 var ToolIDs = []string{"zsh", "starship", "zellij"}
 
 // HasConfig reports whether id ships config files.
@@ -45,6 +44,7 @@ func ConfigRoot(home, xdg string) string {
 //	starship  starship/starship.toml (theme) -> $XDG/starship.toml
 //	          (falls back to shells/starship/starship.toml)
 //	zellij    every file under zellij/ -> $XDG/zellij/ (config, layouts, plugins)
+//	          (config.kdl's zjstatus.wasm path becomes the deployed absolute path)
 //	zsh       shells/zsh/zshrc -> ~/.zshrc (an existing one is backed up; its
 //	          managed blocks are carried over)
 func FilesFor(id, repo, home, xdg string) ([]File, error) {
@@ -60,7 +60,13 @@ func FilesFor(id, repo, home, xdg string) ([]File, error) {
 		}
 		return []File{{Src: src, Dst: filepath.Join(cfg, "starship.toml"), Policy: PolicyBackupReplace}}, nil
 	case "zellij":
-		return walkDir(filepath.Join(repo, "zellij"), filepath.Join(cfg, "zellij"))
+		files, err := walkDir(filepath.Join(repo, "zellij"), filepath.Join(cfg, "zellij"))
+		for i := range files {
+			if files[i].Src == filepath.Join(repo, "zellij", "config.kdl") {
+				files[i].Policy = PolicyZellijConfig
+			}
+		}
+		return files, err
 	case "zsh":
 		return []File{{Src: filepath.Join(repo, "shells", "zsh", "zshrc"), Dst: filepath.Join(home, ".zshrc"), Policy: PolicyZshrc}}, nil
 	default:
@@ -130,6 +136,9 @@ func Undeploy(f File, now time.Time, roots ...string) (Result, error) {
 		return Result{}, err
 	}
 	want, srcErr := os.ReadFile(f.Src)
+	if f.Policy == PolicyZellijConfig && srcErr == nil {
+		want = zellijConfig(f.Dst, want)
+	}
 	same := srcErr == nil && bytes.Equal(have, want)
 	if f.Policy == PolicyZshrc && srcErr == nil {
 		same = sameRc(have, want)

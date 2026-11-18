@@ -84,14 +84,17 @@ func ItemByID(id ID) (Item, bool) {
 	return Item{}, false
 }
 
-// DefaultIDs is the fixed default selection. It is not derived from Item.Default.
+// DefaultIDs is the default selection: every item with Default set, in All() order.
 func DefaultIDs() []ID {
-	return []ID{
-		"git", "curl", "wget", "unzip", "rsync", "vim", "less",
-		"net-tools", "whois", "dnsutils", "traceroute",
-		"eza", "trash", "ripgrep", "fd", "bat", "jq", "fzf",
-		"zellij", "mitos",
+	var ids []ID
+	for _, c := range All() {
+		for _, it := range c.Items {
+			if it.Default {
+				ids = append(ids, it.ID)
+			}
+		}
 	}
+	return ids
 }
 
 func IDs() []ID {

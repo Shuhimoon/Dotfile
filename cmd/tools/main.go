@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,6 +29,7 @@ const usage = `用法:
   tools [--verbose] [--force]
   tools --version
   tools apply [--only id,id] [--pm apt|dnf|yum|pacman|zypper|apk|xbps|brew] [--dry-run] [--bashrc PATH] [--verbose] [--force]
+  tools apply --config-only [--only zsh,starship,zellij] [--dry-run] [--verbose]
 `
 
 func main() {
@@ -95,7 +97,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
-	repo := configRepo(home)
+	repo, repoErr := configRepo(home)
 	fixOwner()
 	uname := platform.UnameM()
 	osr, _ := platform.LoadOSRelease()
@@ -116,6 +118,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 			Bashrc:    filepath.Join(home, ".bashrc"),
 			Zshrc:     filepath.Join(home, ".zshrc"),
 			Repo:      repo,
+			RepoErr:   errText(repoErr),
 			GOOS:      runtime.GOOS,
 			GOARCH:    runtime.GOARCH,
 			Libc:      release.DetectLibc(osr.ID, release.LibcExists),
@@ -146,6 +149,8 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 	pmFlag := ""
 	dry := false
 	bashrc := ""
+	configOnly := false
+	pmSet, bashrcSet := false, false
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		switch {
@@ -158,6 +163,8 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			force = true
 		case a == "--dry-run":
 			dry = true
+		case a == "--config-only":
+			configOnly = true
 		case a == "--only":
 			if i+1 >= len(args) {
 				fmt.Fprintln(stderr, "缺少 --only")
@@ -176,8 +183,10 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			}
 			i++
 			pmFlag = args[i]
+			pmSet = true
 		case strings.HasPrefix(a, "--pm="):
 			pmFlag = strings.TrimPrefix(a, "--pm=")
+			pmSet = true
 		case a == "--bashrc":
 			if i+1 >= len(args) {
 				fmt.Fprintln(stderr, "缺少 --bashrc")
@@ -185,12 +194,21 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			}
 			i++
 			bashrc = args[i]
+			bashrcSet = true
 		case strings.HasPrefix(a, "--bashrc="):
 			bashrc = strings.TrimPrefix(a, "--bashrc=")
+			bashrcSet = true
 		default:
 			fmt.Fprintf(stderr, "未知參數 %s\n%s", a, usage)
 			return 2
 		}
+	}
+	if configOnly {
+		if pmSet || bashrcSet {
+			fmt.Fprintln(stderr, "--config-only 不能搭配 --pm 或 --bashrc")
+			return 2
+		}
+		return runConfigOnly(only, onlySet, dry, verbose, stdout, stderr)
 	}
 	var ids []catalog.ID
 	if !onlySet {
@@ -271,7 +289,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		}
 		return 0
 	}
-	repo := configRepo(home)
+	repo, repoErr := configRepo(home)
 	fixOwner()
 	uname := platform.UnameM()
 	client := release.NewClients()
@@ -283,6 +301,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		XDG:       os.Getenv("XDG_CONFIG_HOME"),
 		Bashrc:    bashrc,
 		Repo:      repo,
+		RepoErr:   errText(repoErr),
 		Manager:   manager,
 		GOOS:      runtime.GOOS,
 		GOARCH:    runtime.GOARCH,
@@ -308,6 +327,115 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		fmt.Fprintln(stderr, "更新失敗")
 	}
 	return code
+}
+
+// runConfigOnly deploys only the config files (and the zsh plugins when zsh is
+// selected): no package manager, no update/package/release steps, no sudo.
+// Without --only it covers every tool in configcopy.ToolIDs.
+func runConfigOnly(only []string, onlySet, dry, verbose bool, stdout, stderr *os.File) int {
+	var ids []catalog.ID
+	if !onlySet {
+		for _, id := range configcopy.ToolIDs {
+			ids = append(ids, catalog.ID(id))
+		}
+	} else {
+		if len(only) == 0 {
+			fmt.Fprintln(stderr, "尚未勾選任何項目")
+			return 2
+		}
+		for _, id := range only {
+			if !configcopy.HasConfig(id) {
+				fmt.Fprintf(stderr, "沒有設定檔的 ID %s（可用：%s）\n", id, strings.Join(configcopy.ToolIDs, ","))
+				return 2
+			}
+			ids = append(ids, catalog.ID(id))
+		}
+	}
+	// The zsh plugins are cloned with git. Only when git is missing does this
+	// path look for a package manager and add the usual steps that install git.
+	var git []install.Plan
+	manager := ""
+	if slices.Contains(ids, "zsh") && !lookPath("git") {
+		osr, err := platform.LoadOSRelease()
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+		manager, err = pm.DetectManager(runtime.GOOS, osr, lookPath)
+		if err != nil {
+			fmt.Fprintln(stderr, "zsh 外掛需要 git，但無法安裝 git:", err)
+			return 2
+		}
+		if git, err = install.ResolveAll([]catalog.ID{"git"}, manager); err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
+	}
+	steps, err := install.BuildConfigSteps(ids, git, os.Geteuid())
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	if dry {
+		for _, st := range steps {
+			fmt.Fprintln(stdout, st.Title)
+			if len(st.Argv) > 0 {
+				fmt.Fprintln(stdout, strings.Join(st.Argv, " "))
+			}
+		}
+		return 0
+	}
+	// sudoSetup never runs sudo; under "sudo tools" it points HOME back at the
+	// invoking user and chowns what was written, as the other paths do.
+	fixOwner, _, err := sudoSetup(stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
+	repo, repoErr := configRepo(home)
+	fixOwner()
+	seed := make([]install.ItemResult, 0, len(ids))
+	for _, st := range steps {
+		if st.Kind == install.KindConfig {
+			seed = append(seed, install.ItemResult{ID: st.ItemID, Status: "ok", Note: "只部署設定"})
+		}
+	}
+	r := &install.Runner{
+		Exec:    install.OSExecutor{},
+		EUID:    os.Geteuid(),
+		Home:    home,
+		XDG:     os.Getenv("XDG_CONFIG_HOME"),
+		Repo:    repo,
+		RepoErr: errText(repoErr),
+		Deploy:  configcopy.Deploy,
+		Seed:    seed,
+		Manager: manager,
+		Log: func(results []install.ItemResult) error {
+			return writeLog(home, manager, verbose, results)
+		},
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+	results, code := r.RunSteps(ctx, steps)
+	fixOwner()
+	for _, res := range results {
+		fmt.Fprintln(stdout, install.FormatResult(res))
+	}
+	if code == 2 {
+		fmt.Fprintln(stderr, "更新失敗：git 未安裝，zsh 外掛未下載")
+	}
+	return code
+}
+
+// lookPath reports whether bin is on PATH; tests replace it.
+var lookPath = func(bin string) bool {
+	_, err := exec.LookPath(bin)
+	return err == nil
 }
 
 func writeLog(home, manager string, verbose bool, results []install.ItemResult) error {
@@ -386,24 +514,34 @@ func isDotfilesRepo(dir string) bool {
 // this repo (development) the checkout itself is used. A released binary
 // uses its embedded copy, extracted to
 // ~/.local/share/dotfiles-tools/configs/<version>. "" means no configs
-// (the config step is then skipped, as before).
-func configRepo(home string) string {
+// (the config step then fails with the returned error, or with a generic
+// reason when there is none).
+func configRepo(home string) (string, error) {
 	if repo, err := findRepo(); err == nil {
-		return repo
+		return repo, nil
 	}
 	return extractConfigs(home, version)
 }
 
-func extractConfigs(home, ver string) string {
+// extractConfigs returns "" and no error without a home (nothing to extract
+// into, as before); an extract failure is returned, not printed, so the TUI's
+// alt screen cannot hide it.
+func extractConfigs(home, ver string) (string, error) {
 	if home == "" {
-		return ""
+		return "", nil
 	}
 	dir := filepath.Join(home, ".local", "share", "dotfiles-tools", "configs", safeVersion(ver))
 	if err := configcopy.Extract(dotfiles.Configs, dir); err != nil {
-		fmt.Fprintln(os.Stderr, "設定檔解壓失敗:", err)
+		return "", fmt.Errorf("設定檔解壓失敗: %w", err)
+	}
+	return dir, nil
+}
+
+func errText(err error) string {
+	if err == nil {
 		return ""
 	}
-	return dir
+	return err.Error()
 }
 
 func safeVersion(v string) string {

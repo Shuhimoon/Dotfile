@@ -51,7 +51,10 @@ func TestFindRepoSkipsOtherModules(t *testing.T) {
 // from the binary, extracted under ~/.local/share/dotfiles-tools/configs/<version>.
 func TestReleasedBinaryUsesEmbeddedConfigs(t *testing.T) {
 	home := t.TempDir()
-	dir := extractConfigs(home, "0.1.0")
+	dir, err := extractConfigs(home, "0.1.0")
+	if err != nil {
+		t.Fatal(err)
+	}
 	want := filepath.Join(home, ".local", "share", "dotfiles-tools", "configs", "0.1.0")
 	if dir != want {
 		t.Fatalf("dir %q", dir)
@@ -61,8 +64,16 @@ func TestReleasedBinaryUsesEmbeddedConfigs(t *testing.T) {
 			t.Fatalf("%s: %v", f, err)
 		}
 	}
-	if extractConfigs("", "0.1.0") != "" {
+	if dir, err := extractConfigs("", "0.1.0"); dir != "" || err != nil {
 		t.Fatal("no home")
+	}
+	// an extract failure is returned (with its reason), not printed
+	blocked := filepath.Join(t.TempDir(), "file")
+	if err := os.WriteFile(blocked, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if dir, err := extractConfigs(blocked, "0.1.0"); dir != "" || err == nil || !strings.Contains(err.Error(), "設定檔解壓失敗") {
+		t.Fatalf("blocked home: %q %v", dir, err)
 	}
 	if got := safeVersion("../../x"); strings.Contains(got, "/") || got == ".." {
 		t.Fatalf("safeVersion %q", got)

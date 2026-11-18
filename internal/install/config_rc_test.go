@@ -223,3 +223,106 @@ func TestRunBaseBlockBothShells(t *testing.T) {
 		}
 	}
 }
+
+// --config-only: seeded "ok" results let the config and zsh-plugins steps run
+// with no package step; the only command run is git clone, and a rerun
+// changes nothing (no new backup, no clone).
+func TestRunConfigOnlyDeploysAndClones(t *testing.T) {
+	steps, err := install.BuildConfigSteps([]catalog.ID{"zsh", "starship", "zellij"}, nil, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	repo := miniRepo(t)
+	put(t, filepath.Join(home, ".zshrc"), "# mine\n")
+	var argvs [][]string
+	ex := &fakeExec{fn: func(argv []string) (string, int, error) {
+		argvs = append(argvs, argv)
+		if argv[0] == "git" {
+			return "", 0, os.MkdirAll(argv[len(argv)-1], 0o755)
+		}
+		return "", 0, nil
+	}}
+	now := time.Date(2026, 11, 18, 1, 2, 3, 0, time.UTC)
+	seed := []install.ItemResult{{ID: "zsh", Status: "ok"}, {ID: "starship", Status: "ok"}, {ID: "zellij", Status: "ok"}}
+	r := &install.Runner{Exec: ex, Home: home, Repo: repo, Deploy: configcopy.Deploy, Seed: seed, Now: func() time.Time { return now }}
+	results, code := r.RunSteps(context.Background(), steps)
+	if code != 0 || len(results) != 3 {
+		t.Fatalf("code %d %+v", code, results)
+	}
+	for _, rel := range []string{".zshrc", ".config/starship.toml", ".config/zellij/config.kdl", ".zsh/fzf-tab", ".zsh/zsh-autosuggestions", ".zsh/zsh-syntax-highlighting"} {
+		if _, err := os.Stat(filepath.Join(home, rel)); err != nil {
+			t.Error(err)
+		}
+	}
+	if len(argvs) != len(install.ZshPlugins) {
+		t.Fatalf("argvs %v", argvs)
+	}
+	for _, a := range argvs {
+		if a[0] != "git" || a[1] != "clone" {
+			t.Fatalf("unexpected command %v", a)
+		}
+	}
+	baks, _ := filepath.Glob(filepath.Join(home, ".zshrc.bak.*"))
+	if len(baks) != 1 {
+		t.Fatalf("backups %v", baks)
+	}
+	argvs = nil
+	r.Now = func() time.Time { return now.Add(time.Hour) }
+	if _, code := r.RunSteps(context.Background(), steps); code != 0 || len(argvs) != 0 {
+		t.Fatalf("rerun code %d argvs %v", code, argvs)
+	}
+	baks, _ = filepath.Glob(filepath.Join(home, "*.bak.*"))
+	more, _ := filepath.Glob(filepath.Join(home, ".config", "*", "*.bak.*"))
+	if len(baks)+len(more) != 1 {
+		t.Fatalf("rerun made backups %v %v", baks, more)
+	}
+}
+
+// --config-only with git missing: when installing git fails, the configs are
+// still deployed, git is reported failed (exit 1, as for any package), and
+// zsh-plugins reports the clones it could not make.
+func TestRunConfigOnlyGitInstallFails(t *testing.T) {
+	git, err := install.ResolveAll([]catalog.ID{"git"}, "dnf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	steps, err := install.BuildConfigSteps([]catalog.ID{"zsh", "zellij"}, git, 1000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	home := t.TempDir()
+	ex := &fakeExec{fn: func(argv []string) (string, int, error) {
+		if argv[0] == "sudo" {
+			return "sudo: a password is required", 1, nil
+		}
+		return "git: not found", 127, nil
+	}}
+	r := &install.Runner{
+		Exec: ex, Home: home, Repo: miniRepo(t), Manager: "dnf", Deploy: configcopy.Deploy,
+		Exists: func(string) bool { return false },
+		Seed:   []install.ItemResult{{ID: "zsh", Status: "ok"}, {ID: "zellij", Status: "ok"}},
+	}
+	results, code := r.RunSteps(context.Background(), steps)
+	if code != 1 {
+		t.Fatalf("code %d %+v", code, results)
+	}
+	for _, rel := range []string{".zshrc", ".config/zellij/config.kdl"} {
+		if _, err := os.Stat(filepath.Join(home, rel)); err != nil {
+			t.Error(err)
+		}
+	}
+	byID := map[catalog.ID]install.ItemResult{}
+	for _, res := range results {
+		byID[res.ID] = res
+	}
+	if byID["git"].Status != "failed" || byID["git"].ErrText == "" {
+		t.Fatalf("git %+v", byID["git"])
+	}
+	if !strings.Contains(byID["zsh"].Note, "zsh 外掛下載失敗") {
+		t.Fatalf("zsh %+v", byID["zsh"])
+	}
+	if len(ex.calls) == 0 || strings.Join(ex.calls[0], " ") != "sudo dnf install -y git" {
+		t.Fatalf("calls %v", ex.calls)
+	}
+}

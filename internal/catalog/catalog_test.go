@@ -45,6 +45,10 @@ func TestDefaultSelectionSet(t *testing.T) {
 			}
 		}
 	}
+	// DefaultIDs is built from the Default flags, in All() order.
+	if !slices.Equal(got, fromDefault) {
+		t.Fatalf("DefaultIDs() %v not the Default items in order %v", got, fromDefault)
+	}
 	sortedWant := append([]catalog.ID(nil), want...)
 	slices.Sort(sortedWant)
 	slices.Sort(fromDefault)
