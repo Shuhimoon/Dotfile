@@ -1,6 +1,5 @@
 # build outputs
 /tools
-/link-bash
 /bin/
 /dist/
 *.exe

@@ -18,8 +18,7 @@ type File struct {
 }
 
 // ToolIDs are the catalog tools that have a config directory in the repo.
-// ghostty/ and wezterm/ belong to terminal apps the catalog does not install;
-// WSL/ is empty.
+// ghostty/ and wezterm/ belong to terminal apps the catalog does not install.
 var ToolIDs = []string{"zsh", "starship", "zellij"}
 
 // HasConfig reports whether id ships config files.
