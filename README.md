@@ -8,8 +8,10 @@ go run ./cmd/tools apply --only starship,zellij --dry-run
 go test ./...
 ```
 
-- 設定檔：`starship/`、`zellij/`、`shells/zsh/`，安裝成功後部署到 `~/.config` 與 `~/.zshrc`（不同的既有檔先備份成 `.bak.<UTC>`）。
-- shell 設定：`~/.bashrc` 與 `~/.zshrc` 都會寫入 `# >>> dotfiles:<tool> >>>` 區塊，解除安裝時只刪那幾行。
+- 設定檔：`starship/`、`zellij/`、`shells/zsh/`，安裝成功後部署到 `~/.config` 與 `~/.zshrc`（不同的既有檔先備份成 `.bak.<UTC>`；舊 `~/.zshrc` 裡的 dotfiles 區塊會搬到新檔）。
+- shell 設定：每次安裝都在 `~/.bashrc` 與 `~/.zshrc`（沒有就建立）寫入 `# >>> dotfiles:<tool> >>>` 區塊，解除安裝時只刪那幾行。`dotfiles:base` 區塊放 PATH（`~/.local/bin`、`$GOPATH/bin`、`/usr/local/go/bin`，存在才加）、cargo env、eza alias，最後是 `starship init`（有 starship 才跑）。zsh 範本自己就有這些（`# dotfiles:provides` 行），不會重複加。
+- zsh 外掛：裝 zsh 時 `git clone` fzf-tab、zsh-autosuggestions、zsh-syntax-highlighting 到 `~/.zsh/`（已存在就略過），並建立 `~/.zsh/cache`；解除安裝 zsh 時刪掉。
+- `sudo ./tools`：偵測 `SUDO_USER`，把 HOME 換回本人的家目錄，工具、設定、rc、`~/.ssh` 都寫到本人那裡，結束後把 root 建立的檔案 chown 回 `SUDO_UID:SUDO_GID`（別人的檔不動）；套件指令不加 sudo、不問密碼。直接用 root 登入（沒有 `SUDO_USER`）就用 root 的家目錄。
 - 「基礎」分類（git、curl、vim…）不可解除安裝；移除 python 時進度頁會顯示警告。
 - 「容器」分類有 docker 與 podman。docker 依系統用不同套件（Fedora `moby-engine docker-compose`、Debian／Ubuntu `docker.io`、Arch／openSUSE／Void `docker docker-compose`、Alpine `docker docker-cli-compose`、mac `docker docker-compose` 只有 CLI，需要 Docker Desktop 或 colima）。Linux 裝完會加入 docker 群組，有 systemd 時啟用並啟動服務（沒開 systemd 的 WSL 會跳過並提示）。移除只移套件，不刪映像檔和 volume。詳見 `docs/tools-containers.md`。
 - 「語言」分類有 zig：Fedora／Arch／openSUSE／Alpine／Void／mac 用套件，Debian／Ubuntu 用 ziglang.org 官方 tarball（核對 sha256 與 minisign 簽章），裝在 `~/.local/share/zig`，`~/.local/bin/zig` 是 symlink。詳見 `docs/tools-zig.md`。fastfetch 在 Shell 分類。

@@ -178,6 +178,7 @@ func (m model) gitKeyKey(k tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) saveGitKey() (tea.Model, tea.Cmd) {
+	defer m.fixOwner()
 	name := strings.TrimSpace(string(m.gitName))
 	if len(sshkey.Normalize(m.gitBuf)) == 0 {
 		m.gitNote = "請先貼上私鑰"
@@ -199,6 +200,7 @@ func (m model) saveGitKey() (tea.Model, tea.Cmd) {
 }
 
 func (m model) applyGitKey(name, saved string) (tea.Model, tea.Cmd) {
+	defer m.fixOwner()
 	l := m.sshLayout()
 	now := time.Now()
 	if m.deps.Now != nil {

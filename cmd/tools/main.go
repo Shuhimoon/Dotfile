@@ -85,12 +85,18 @@ func takeFrontFlags(args []string) (verbose, force bool, rest []string, bad stri
 }
 
 func runTUI(verbose, force bool, stdout *os.File) int {
+	fixOwner, _, err := sudoSetup(os.Stderr)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
 	repo := configRepo(home)
+	fixOwner()
 	uname := platform.UnameM()
 	osr, _ := platform.LoadOSRelease()
 	client := release.NewClients()
@@ -100,6 +106,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 	m = tui.SetDeps(m, tui.Deps{
 		ASCII:             cflags.ASCII,
 		ReserveLastColumn: cflags.ReserveLastColumn,
+		FixOwner:          fixOwner,
 		Styled:            isTTY(stdout) && os.Getenv("NO_COLOR") == "",
 		Force:             force,
 		Uname:             uname,
@@ -125,6 +132,7 @@ func runTUI(verbose, force bool, stdout *os.File) int {
 	})
 	prog := tea.NewProgram(m, tea.WithAltScreen())
 	final, err := prog.Run()
+	fixOwner()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return 1
@@ -231,6 +239,11 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 			return 2
 		}
 	}
+	fixOwner, _, err := sudoSetup(stderr)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return 2
+	}
 	home, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintln(stderr, err)
@@ -259,6 +272,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 		return 0
 	}
 	repo := configRepo(home)
+	fixOwner()
 	uname := platform.UnameM()
 	client := release.NewClients()
 	r := &install.Runner{
@@ -286,6 +300,7 @@ func runApply(args []string, verbose, force bool, stdout, stderr *os.File) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 	results, code := r.RunSteps(ctx, steps)
+	fixOwner()
 	for _, res := range results {
 		fmt.Fprintln(stdout, install.FormatResult(res))
 	}

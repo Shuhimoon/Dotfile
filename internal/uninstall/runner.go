@@ -118,6 +118,8 @@ func (r *Runner) step(ctx context.Context, st Step) (string, error) {
 		return r.removeConfig(st.ItemID)
 	case KindSSH:
 		return r.removeSSHBlock()
+	case KindZshPlugins:
+		return r.removeZshPlugins()
 	default:
 		return "", fmt.Errorf("未知的步驟 %s", st.Kind)
 	}
@@ -333,4 +335,34 @@ func (r *Runner) removeSSHBlock() (string, error) {
 		return "已從 ~/.ssh/config 移除 github 區塊（鑰匙檔保留）", nil
 	}
 	return "", nil
+}
+
+// removeZshPlugins deletes ~/.zsh/<plugin> for the plugins install clones,
+// ~/.zsh/cache, and ~/.zsh itself when nothing else is left in it.
+func (r *Runner) removeZshPlugins() (string, error) {
+	if r.Home == "" {
+		return "", fmt.Errorf("沒有 home")
+	}
+	dir := install.ZshDir(r.Home)
+	if info, err := os.Lstat(dir); err != nil || !info.IsDir() {
+		return "", nil
+	}
+	removed := 0
+	for _, p := range install.ZshPlugins {
+		path := filepath.Join(dir, p.Name)
+		info, err := os.Lstat(path)
+		if err != nil || !info.IsDir() {
+			continue
+		}
+		if err := os.RemoveAll(path); err != nil {
+			return "", err
+		}
+		removed++
+	}
+	_ = os.RemoveAll(filepath.Join(dir, "cache"))
+	_ = os.Remove(dir) // only when empty
+	if removed == 0 {
+		return "", nil
+	}
+	return fmt.Sprintf("已刪除 %d 個 zsh 外掛（~/.zsh）", removed), nil
 }

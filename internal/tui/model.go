@@ -66,6 +66,9 @@ type Deps struct {
 	ASCII bool
 	// ReserveLastColumn never writes the last column (conhost wraps there).
 	ReserveLastColumn bool
+	// FixOwner gives files written under the user's home back to the user
+	// after a run (set for `sudo ./tools`; nil otherwise).
+	FixOwner func()
 }
 
 type model struct {

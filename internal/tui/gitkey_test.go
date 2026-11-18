@@ -165,3 +165,24 @@ func TestGitKeyWindowsLayout(t *testing.T) {
 		t.Fatalf("%q", cfg)
 	}
 }
+
+// sudo runs give files back to the user after an install and a key save.
+func TestFixOwnerCalledAfterRunAndKeySave(t *testing.T) {
+	m, home := gitModel(t, "linux")
+	_ = home
+	calls := 0
+	m.deps.FixOwner = func() { calls++ }
+	m.finishRun([]install.ItemResult{{ID: "git", Status: "ok"}}, 0)
+	if calls != 1 {
+		t.Fatalf("finishRun calls %d", calls)
+	}
+	m = press(t, m, keyRune('x'))
+	m = press(t, m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(testKey(t)), Paste: true})
+	m = press(t, m, tea.KeyMsg{Type: tea.KeyTab}, tea.KeyMsg{Type: tea.KeyCtrlU}, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("github")}, tea.KeyMsg{Type: tea.KeyEnter})
+	if m.gitStage != gitDone {
+		t.Fatalf("stage %d note %q", m.gitStage, m.gitNote)
+	}
+	if calls < 2 {
+		t.Fatalf("key save did not fix owners (calls %d)", calls)
+	}
+}

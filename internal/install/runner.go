@@ -148,6 +148,16 @@ func (r *Runner) RunSteps(ctx context.Context, steps []Step) ([]ItemResult, int)
 				return results, 1
 			}
 			r.note(st.Title, status)
+		case KindZshPlugins:
+			updated, status, canceled := r.doZshPlugins(ctx, results)
+			if canceled {
+				_ = r.writeLog(results)
+				return results, 1
+			}
+			if status != "skipped" {
+				results = replaceResult(results, updated)
+			}
+			r.note(st.Title, status)
 		case KindProbe:
 			res := r.doProbe(st)
 			results = append(results, res)
