@@ -229,7 +229,7 @@ func TestProgressFollowsStreamedMessages(t *testing.T) {
 		t.Fatalf("output %q", m.output)
 	}
 	view := render(m, false)
-	for _, s := range []string{"安裝中  2/4  install jq", "完成    update dnf", "執行中  install jq", "等待    release starship", "輸出", "  Installed jq", "操作  ctrl+c 取消"} {
+	for _, s := range []string{"安裝中  2/4  install jq", "完成    update dnf", "執行中  install jq", "等待    release starship", "│ 輸出", "│ Installed jq", "操作  ctrl+c 取消"} {
 		if !strings.Contains(view, s) {
 			t.Fatalf("missing %q\n%s", s, view)
 		}
@@ -256,7 +256,7 @@ func TestProgressFollowsStreamedMessages(t *testing.T) {
 		t.Fatalf("phase %d", m.phase)
 	}
 	rep := render(m, false)
-	for _, s := range []string{"安裝完成：成功 1、失敗 1", "starship  failed", "操作  任意鍵回主頁", "  Installed jq"} {
+	for _, s := range []string{"安裝完成：成功 1、失敗 1", "starship  failed", "操作  任意鍵回主頁", "│ Installed jq"} {
 		if !strings.Contains(rep, s) {
 			t.Fatalf("missing %q\n%s", s, rep)
 		}

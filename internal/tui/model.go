@@ -128,6 +128,10 @@ type model struct {
 	gitName      []rune
 	gitNote      string
 	gitDoneLines []string
+	// progOffset is the first visible step while the list is scrolled by
+	// hand (progManual); otherwise the list follows the running step.
+	progOffset int
+	progManual bool
 }
 
 func New(info platform.Info) model {
