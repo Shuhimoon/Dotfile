@@ -13,8 +13,9 @@ import (
 // stacked layout (list above, output below).
 
 const (
-	// splitMinWidth is the narrowest terminal that gets the side-by-side layout.
-	splitMinWidth = 80
+	// splitMinWidth is the narrowest terminal that gets the side-by-side layout
+	// (78, so an 80-column Windows console laid out one column narrower splits).
+	splitMinWidth = 78
 	splitLeftMin  = 28
 	splitLeftMax  = 56
 	splitDivider  = " │ "
